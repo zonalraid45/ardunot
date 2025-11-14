@@ -62,9 +62,26 @@ async def fetch_ai_response(user_msg: str):
         "Content-Type": "application/json"
     }
 
+    # SYSTEM PROMPT (PERSONALITY + ROLE)
     payload = {
         "model": MODEL,
-        "messages": [{"role": "user", "content": user_msg}],
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are Ardunot version 2.0. "
+                    "You are a friendly Discord moderator and a chatting buddy. "
+                    "You help keep conversations clean, respond politely, "
+                    "and talk casually like a normal Discord user. "
+                    "You are in a Discord server called 'Royalracer Fans'. "
+                    "Always stay positive, helpful, and conversational."
+                )
+            },
+            {
+                "role": "user",
+                "content": user_msg
+            }
+        ],
         "max_tokens": 200
     }
 
@@ -83,7 +100,7 @@ async def fetch_ai_response(user_msg: str):
                 print(f"[AI DEBUG] Attempt {attempt}: HTTP {resp.status} - {text}")
                 await asyncio.sleep(1)
 
-        return None  # All attempts failed
+        return None  # FAILED 3 TIMES
 
 
 # ------------------------------------------
@@ -96,31 +113,30 @@ async def on_ready():
 
 
 # ------------------------------------------
-# 💬 REPLY TO ALL MESSAGES + MENTION
+# 💬 REPLY TO ALL MESSAGES + MENTION SUPPORT
 # ------------------------------------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # Text the user sent
     user_msg = message.content.strip()
 
-    # Remove mention if included
-    mention_text = f"<@{bot.user.id}>"
-    mention_text_alt = f"<@!{bot.user.id}>"
+    # Detect mentions and remove mention text
+    mention1 = f"<@{bot.user.id}>"
+    mention2 = f"<@!{bot.user.id}>"
 
-    if mention_text in user_msg:
-        user_msg = user_msg.replace(mention_text, "").strip()
+    if mention1 in user_msg:
+        user_msg = user_msg.replace(mention1, "").strip()
 
-    if mention_text_alt in user_msg:
-        user_msg = user_msg.replace(mention_text_alt, "").strip()
+    if mention2 in user_msg:
+        user_msg = user_msg.replace(mention2, "").strip()
 
-    # If user sends an empty message (only mention), add default prompt
+    # If only mention was sent
     if user_msg == "":
         user_msg = "Hello!"
 
-    # Generate AI response
+    # Generate response
     ai_reply = await fetch_ai_response(user_msg)
 
     if ai_reply is None:
@@ -132,6 +148,6 @@ async def on_message(message):
 
 
 # ------------------------------------------
-# ▶️ RUN THE BOT
+# ▶️ RUN BOT
 # ------------------------------------------
 bot.run(TOKEN)
