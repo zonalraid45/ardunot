@@ -4,18 +4,30 @@ from discord.ext import commands
 import aiohttp
 import asyncio
 
+# -----------------------------
+# 🔐 ENV VARIABLES
+# -----------------------------
 TOKEN = os.getenv("DISCORD_TOKEN")
 HF_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+# -----------------------------
+# 🤖 BOT SETUP
+# -----------------------------
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="!", intents=intents)
 
+# -----------------------------
+# 🌐 API SETTINGS
+# -----------------------------
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
 MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 
+# Only reply in this channel:
+AI_CHAT_CHANNEL_ID = 1435926773907980370
 
 
 # ------------------------------------------
-# 🔍 API HEALTH CHECK FUNCTION (runs on startup)
+# 🔍 API HEALTH CHECK FUNCTION
 # ------------------------------------------
 async def check_api_health():
     headers = {
@@ -60,7 +72,7 @@ async def fetch_ai_response(user_msg: str):
     }
 
     async with aiohttp.ClientSession() as session:
-        for attempt in range(1, 3 + 1):
+        for attempt in range(1, 4):
             async with session.post(HF_URL, headers=headers, json=payload) as resp:
                 text = await resp.text()
 
@@ -71,22 +83,19 @@ async def fetch_ai_response(user_msg: str):
                     except:
                         return "⚠️ AI responded with invalid JSON."
 
-                # print debug errors
                 print(f"[AI DEBUG] Attempt {attempt}: HTTP {resp.status} - {text}")
-
                 await asyncio.sleep(1)
 
-        return None  # failed all attempts
+        return None  # All attempts failed
 
 
 # ------------------------------------------
 # 🤖 DISCORD EVENTS
 # ------------------------------------------
-
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    await check_api_health()  # 🔍 run health check at startup
+    await check_api_health()
 
 
 @bot.event
@@ -94,17 +103,23 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    if bot.user.mention in message.content:
-        user_msg = message.content.replace(bot.user.mention, "").strip()
+    # Only reply in chosen channel:
+    if message.channel.id != AI_CHAT_CHANNEL_ID:
+        return
 
-        ai_reply = await fetch_ai_response(user_msg)
+    user_msg = message.content.strip()
 
-        if ai_reply is None:
-            await message.reply("⚠️ AI service is busy or unreachable. Please try again.")
-        else:
-            await message.reply(ai_reply)
+    ai_reply = await fetch_ai_response(user_msg)
+
+    if ai_reply is None:
+        await message.reply("⚠️ AI service is busy or unreachable. Please try again.")
+    else:
+        await message.reply(ai_reply)
 
     await bot.process_commands(message)
 
 
+# ------------------------------------------
+# ✔️ RUN BOT
+# ------------------------------------------
 bot.run(TOKEN)
