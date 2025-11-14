@@ -22,9 +22,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
 MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 
-# Only reply in this channel:
-AI_CHAT_CHANNEL_ID = 1435926773907980370
-
 
 # ------------------------------------------
 # 🔍 API HEALTH CHECK FUNCTION
@@ -98,17 +95,32 @@ async def on_ready():
     await check_api_health()
 
 
+# ------------------------------------------
+# 💬 REPLY TO ALL MESSAGES + MENTION
+# ------------------------------------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # Only reply in chosen channel:
-    if message.channel.id != AI_CHAT_CHANNEL_ID:
-        return
-
+    # Text the user sent
     user_msg = message.content.strip()
 
+    # Remove mention if included
+    mention_text = f"<@{bot.user.id}>"
+    mention_text_alt = f"<@!{bot.user.id}>"
+
+    if mention_text in user_msg:
+        user_msg = user_msg.replace(mention_text, "").strip()
+
+    if mention_text_alt in user_msg:
+        user_msg = user_msg.replace(mention_text_alt, "").strip()
+
+    # If user sends an empty message (only mention), add default prompt
+    if user_msg == "":
+        user_msg = "Hello!"
+
+    # Generate AI response
     ai_reply = await fetch_ai_response(user_msg)
 
     if ai_reply is None:
@@ -120,6 +132,6 @@ async def on_message(message):
 
 
 # ------------------------------------------
-# ✔️ RUN BOT
+# ▶️ RUN THE BOT
 # ------------------------------------------
 bot.run(TOKEN)
