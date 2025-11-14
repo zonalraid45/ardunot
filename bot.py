@@ -32,7 +32,7 @@ def ask_ai(message):
         try:
             r = requests.post(url, json=data, headers=headers, timeout=15)
 
-            # Debugging output to see why AI failed
+            # Debug log
             print(f"[AI DEBUG] Attempt {attempt}: {r.text}")
 
             if r.status_code != 200:
@@ -63,9 +63,9 @@ async def on_message(message):
 
     # Bot replies when mentioned
     if bot.user.mentioned_in(message):
-        user_msg = message.content.replace(f\"<@{bot.user.id}>\", "").strip()
+        user_msg = message.content.replace(f"<@{bot.user.id}>", "").strip()
 
-        # show bot typing
+        # Show typing
         await message.channel.typing()
 
         reply = ask_ai(user_msg)
@@ -89,3 +89,4 @@ async def ask(ctx, *, question):
 # RUN BOT
 # ---------------------------------------------------------------------
 bot.run(DISCORD_TOKEN)
+
