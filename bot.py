@@ -57,15 +57,21 @@ def extract_time(text: str):
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
-    # Get last 30 messages for context
+    # --- 30-message memory ---
     mem = channel_memory.get(channel.id, deque(maxlen=MAX_MEMORY))
     chat_history = "\n".join(mem)
 
-    member_data = ", ".join([member.name for member in guild.members])
+    # --- member names + roles ---
+    member_data = []
+    for member in guild.members:
+        roles = [role.name for role in member.roles if role.name != "@everyone"]
+        member_data.append(f"{member.name} ({', '.join(roles) if roles else 'No roles'})")
+    member_data_str = ", ".join(member_data)
 
     system_prompt = (
         f"You are Ardunot-v2, a smart Discord moderator bot in server '{guild.name}'. "
-        f"You know all members: {member_data}. You are in channel: #{channel.name}. "
+        f"You know all members and their roles: {member_data_str}. "
+        f"You are in channel: #{channel.name}. "
         f"Only reply when mentioned or when someone replies to your last message. "
         f"Recent chat history:\n{chat_history}"
     )
@@ -150,4 +156,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+# -----------------------------
+# RUN BOT
+# -----------------------------
 bot.run(TOKEN)
