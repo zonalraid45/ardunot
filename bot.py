@@ -12,7 +12,7 @@ MODEL = "mistral-nemo"  # Free model
 
 
 # -----------------------------
-# AI REQUEST FUNCTION (Updated)
+# AI REQUEST (RETRY + LOGGING)
 # -----------------------------
 def ask_ai(message):
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -26,21 +26,22 @@ def ask_ai(message):
         "messages": [{"role": "user", "content": message}]
     }
 
-    try:
-        r = requests.post(url, json=data, headers=headers, timeout=15)
+    # Try up to 3 times
+    for attempt in range(1, 4):
+        try:
+            r = requests.post(url, json=data, headers=headers, timeout=15)
 
-        # Non-200 HTTP codes handled
-        if r.status_code != 200:
-            return "⚠️ AI service is busy or unreachable. Please try again."
+            if r.status_code != 200:
+                print(f"[AI ERROR] HTTP {r.status_code} (attempt {attempt})")
+                continue
 
-        response = r.json()
+            response = r.json()
+            return response["choices"][0]["message"]["content"]
 
-        # Try to get AI response
-        return response["choices"][0]["message"]["content"]
+        except Exception as e:
+            print(f"[AI EXCEPTION] attempt {attempt} → {e}")
 
-    except Exception:
-        # ANY failure = friendly fallback
-        return "⚠️ Sorry, I couldn't fetch a reply from the AI. Try again shortly!"
+    return "⚠️ AI service is busy or unreachable. Please try again."
 
 
 # -----------------------------
@@ -56,10 +57,11 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # Chat when bot is mentioned
+    # Bot mentioned → AI reply
     if bot.user.mentioned_in(message):
         user_msg = message.content.replace(f"<@{bot.user.id}>", "").strip()
 
+        # Typing indicator
         async with message.channel.typing():
             reply = ask_ai(user_msg)
 
@@ -70,11 +72,11 @@ async def on_message(message):
 
 
 # -----------------------------
-# OPTIONAL COMMAND
+# /ask command
 # -----------------------------
 @bot.command()
 async def ask(ctx, *, question):
-    async with ctx.channel.typing():
+    async with ctx.channel.typing():  # typing animation
         reply = ask_ai(question)
     await ctx.send(reply)
 
@@ -83,4 +85,3 @@ async def ask(ctx, *, question):
 # RUN BOT
 # -----------------------------
 bot.run(DISCORD_TOKEN)
-
