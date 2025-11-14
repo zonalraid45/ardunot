@@ -60,8 +60,8 @@ async def on_message(message):
     if bot.user.mentioned_in(message):
         user_msg = message.content.replace(f"<@{bot.user.id}>", "").strip()
 
-        await message.channel.trigger_typing()
-        reply = ask_ai(user_msg)
+        async with message.channel.typing():
+            reply = ask_ai(user_msg)
 
         await message.reply(reply)
         return
@@ -74,8 +74,8 @@ async def on_message(message):
 # -----------------------------
 @bot.command()
 async def ask(ctx, *, question):
-    await ctx.channel.trigger_typing()
-    reply = ask_ai(question)
+    async with ctx.channel.typing():
+        reply = ask_ai(question)
     await ctx.send(reply)
 
 
@@ -83,3 +83,4 @@ async def ask(ctx, *, question):
 # RUN BOT
 # -----------------------------
 bot.run(DISCORD_TOKEN)
+
