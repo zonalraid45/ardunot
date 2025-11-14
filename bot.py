@@ -3,20 +3,19 @@ import discord
 import requests
 from discord.ext import commands
 
-HF_API_KEY = os.getenv("OPENROUTER_API_KEY")   # using your existing env variable
+HF_API_KEY = os.getenv("OPENROUTER_API_KEY")  # using your existing env variable
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
-# Free model (fast & safe)
-HF_MODEL = "google/gemma-2b-it"
+HF_MODEL = "google/gemma-2-2b-it"  # free chat model
 
 
 # ------------------------------------------------------------
-# HuggingFace AI Request (retry + logging)
+# HuggingFace Chat Completion API (new)
 # ------------------------------------------------------------
 def ask_ai(message):
-    url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+    url = "https://router.huggingface.co/hf-inference/v1/chat/completions"
 
     headers = {
         "Authorization": f"Bearer {HF_API_KEY}",
@@ -24,8 +23,11 @@ def ask_ai(message):
     }
 
     payload = {
-        "inputs": message,
-        "parameters": {"max_new_tokens": 200}
+        "model": HF_MODEL,
+        "messages": [
+            {"role": "user", "content": message}
+        ],
+        "max_tokens": 200
     }
 
     for attempt in range(1, 4):
@@ -38,16 +40,11 @@ def ask_ai(message):
                 print(f"[AI ERROR] HTTP {r.status_code} (Attempt {attempt})")
                 continue
 
-            data = r.json()
-
-            # HF returns a list
-            if isinstance(data, list) and "generated_text" in data[0]:
-                return data[0]["generated_text"]
-
-            return "⚠️ AI responded but format was unexpected."
+            response = r.json()
+            return response["choices"][0]["message"]["content"]
 
         except Exception as e:
-            print(f"[AI EXCEPTION] attempt {attempt} → {e}")
+            print(f"[AI EXCEPTION] Attempt {attempt} → {e}")
 
     return "⚠️ AI service is busy or unreachable. Please try again."
 
@@ -65,12 +62,11 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # bot responds when mentioned
+    # bot replies when mentioned
     if bot.user.mentioned_in(message):
         user_msg = message.content.replace(f"<@{bot.user.id}>", "").strip()
 
         await message.channel.typing()
-
         reply = ask_ai(user_msg)
         await message.reply(reply)
         return
@@ -92,3 +88,4 @@ async def ask(ctx, *, question):
 # RUN BOT
 # ------------------------------------------------------------
 bot.run(DISCORD_TOKEN)
+
