@@ -9,8 +9,9 @@ HF_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
-HF_URL = "https://router.huggingface.co/hf-inference/v1/chat/completions"
+HF_URL = "https://router.huggingface.co/v1/chat/completions"
 MODEL = "meta-llama/Llama-3.2-3B-Instruct"
+
 
 
 # ------------------------------------------
