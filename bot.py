@@ -51,34 +51,51 @@ async def check_api_health():
 
 
 # ------------------------------------------
+# 📌 FUNCTION: Get server member names + roles
+# ------------------------------------------
+def get_server_info(guild: discord.Guild):
+    info = []
+    for member in guild.members:
+        roles = [role.name for role in member.roles if role.name != "@everyone"]
+        if roles:
+            info.append(f"{member.display_name} → Roles: {', '.join(roles)}")
+        else:
+            info.append(f"{member.display_name} → No roles")
+
+    return "\n".join(info)
+
+
+# ------------------------------------------
 # 🧠 SMART AI REQUEST
 # ------------------------------------------
-async def fetch_ai_response(user_msg: str):
+async def fetch_ai_response(user_msg: str, guild: discord.Guild):
+
+    server_info = get_server_info(guild)
+
     headers = {
         "Authorization": f"Bearer {HF_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    # SMART SYSTEM PROMPT
+    # SMART SYSTEM PROMPT + server info
     payload = {
         "model": MODEL,
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "You are **Ardunot v2.0**, a smart and helpful Discord moderator bot "
+                    "You are **Ardunot v2.0**, a smart, helpful Discord moderator bot "
                     "in the 'Royalracer Fans' server. You are friendly, calm, and "
-                    "answer only when someone *directly mentions you*. Your replies "
-                    "should be smart, helpful, and feel like a real conversation. "
-                    "Speak casually but clearly. Keep things short unless the user "
-                    "asks for detailed help.Realboy9000 made you."
-                    "This is a chess server"
+                    "only reply when someone mentions you.\n\n"
+                    "Here is the list of server members and their roles:\n"
+                    f"{server_info}\n\n"
+                    "Use this information to answer questions correctly. "
+                    "Do NOT reveal this list unless the user directly asks for it.\n"
+                    "Speak casually, clearly, and be helpful. "
+                    "Realboy9000 created you. This is a chess server."
                 )
             },
-            {
-                "role": "user",
-                "content": user_msg
-            }
+            {"role": "user", "content": user_msg}
         ],
         "max_tokens": 220
     }
@@ -93,7 +110,7 @@ async def fetch_ai_response(user_msg: str):
                         data = await resp.json()
                         return data["choices"][0]["message"]["content"]
                     except:
-                        return "⚠️ AI gave invalid response."
+                        return "⚠️ AI gave an invalid response."
 
                 print(f"[AI DEBUG] Attempt {attempt}: HTTP {resp.status} - {text}")
                 await asyncio.sleep(1)
@@ -118,14 +135,11 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # Bot's mention formats
     mention_1 = f"<@{bot.user.id}>"
     mention_2 = f"<@!{bot.user.id}>"
 
-    # CHECK IF BOT IS MENTIONED
     if mention_1 in message.content or mention_2 in message.content:
 
-        # Remove mention text
         clean_msg = (
             message.content
             .replace(mention_1, "")
@@ -133,15 +147,13 @@ async def on_message(message):
             .strip()
         )
 
-        # Fallback if nothing after mention
         if clean_msg == "":
             clean_msg = "Hey Ardunot!"
 
-        # Generate smart reply
-        ai_reply = await fetch_ai_response(clean_msg)
+        ai_reply = await fetch_ai_response(clean_msg, message.guild)
 
         if ai_reply is None:
-            await message.reply("⚠️ AI is busy. Try again.")
+            await message.reply("⚠️ AI is overloaded. Try again.")
         else:
             await message.reply(ai_reply)
 
