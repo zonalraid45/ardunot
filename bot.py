@@ -81,6 +81,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         f"You speak casually but clearly. "
         f"Creator: Realboy9000. "
         f"This is a chess community server."
+        f"Reply when somebody reply your last message."
     )
 
     payload = {
