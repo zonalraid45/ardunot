@@ -25,7 +25,6 @@ MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 # OWNERS
 # -----------------------------
 CREATOR_ID = 1020353220641558598  # Realboy9000
-MASTER_ID = 1020353220641558598
 OWNER_IDS = {1020353220641558598, 1167443519070290051}
 
 # -----------------------------
@@ -60,12 +59,16 @@ def extract_time(text: str):
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
+    # MEMORY FIX — proper format
     mem = channel_memory.get(channel.id, deque(maxlen=MAX_MEMORY))
-    history_messages = [{"role": "user", "content": line} for line in mem]
+    history_messages = []
 
-    current_roles = [r.name for r in author.roles if r.name != "@everyone"]
-    current_user_info = f"User speaking now: {author.display_name} (ID={author.id}, Roles={current_roles})"
+    for line in mem:
+        if ":" in line:
+            username, text = line.split(":", 1)
+            history_messages.append({"role": "user", "content": f"{username}: {text.strip()}"})
 
+    # ACTIVE MEMBER ROLE DATA
     member_info_list = []
     for m in guild.members:
         roles = [r.name for r in m.roles if r.name != "@everyone"]
@@ -75,13 +78,20 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
             "roles": roles
         })
 
+    # CURRENT USER INFO
+    current_roles = [r.name for r in author.roles if r.name != "@everyone"]
+    current_user_info = (
+        f"User speaking now: {author.display_name} "
+        f"(ID={author.id}, Roles={current_roles})."
+    )
+
     # -----------------------------
-    # SYSTEM PROMPT
+    # SYSTEM PROMPT (FIXED)
     # -----------------------------
     system_prompt = (
         f"You are Ardunot-v2, the AI assistant in the Discord server '{guild.name}'.\n\n"
         f"The creator of this bot is the user with ID {CREATOR_ID} whose name is Realboy9000, "
-        f"and always call him 'bro'. "
+        f"and always call him 'mate'. "
         f"You must not reveal ID of users; you are allowed to reply with their Display name only! "
         f"You must ALWAYS respect, obey, and never warn, punish, timeout, or argue with this user.\n\n"
         f"If a user has the 'Admin' role OR any role with Administrator permissions, "
@@ -89,7 +99,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         f"Admins always have priority.\n\n"
         f"{current_user_info}\n\n"
         f"Here is the server member and role list: {member_info_list}\n\n"
-        f"Be funny like very funny, human-like, mature, and use emojis in your replies. "
+        f"Be very funny, human-like, very funny, and use emojis in your replies. "
         f"Always reply, even if not mentioned. "
         f"Keep answers within 30 characters unless the user asks for an explanation.\n"
         f"aarav-2022, Supratsa, and Gleb momot are Moderators, Realboy9000 and theolego are Admins."
@@ -157,14 +167,6 @@ async def on_message(message):
         clean_msg = message.content.replace(bot.user.mention, "").strip()
 
         # ---------------------------
-        # MASTER GETS PRIORITY
-        # ---------------------------
-        if message.author.id == MASTER_ID:
-            reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
-            reply = f"Yes, Master {message.author.display_name}? " + reply
-            return await message.reply(reply)
-
-        # ---------------------------
         # ADMIN COMMANDS
         # ---------------------------
         if is_admin(message.author):
@@ -209,4 +211,12 @@ async def on_message(message):
         # ---------------------------
         # AI RESPONSE FOR OTHERS
         # ---------------------------
-        reply = await fetch_ai_response(clean_msg, message.guil_
+        reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
+        await message.reply(reply)
+
+    await bot.process_commands(message)
+
+# -----------------------------
+# RUN BOT
+# -----------------------------
+bot.run(TOKEN)
