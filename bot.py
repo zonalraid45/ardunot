@@ -74,7 +74,9 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         async with session.post(HF_URL, headers=headers, json=payload) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                # Remove the @ symbol from the content to prevent any mentions from the AI.
+                return content.replace('@', '') 
 
     return "⚠️ AI failed to respond."
 
@@ -84,11 +86,13 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # This check is now removed to allow the bot to respond to other bots.
-    # We must ensure we don't reply to ourselves to prevent an infinite loop.
+    # CRITICAL: Ignore messages sent by THIS bot to prevent infinite loops.
     if message.author == bot.user:
         return
 
+    # All other messages, including those from other bots, will now be processed.
+    # The previous fix (removing 'if message.author.bot: return') ensured this.
+    
     channel_id = message.channel.id
     if channel_id not in channel_memory:
         channel_memory[channel_id] = deque(maxlen=MAX_MEMORY)
