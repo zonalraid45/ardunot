@@ -101,42 +101,41 @@ async def on_message(message):
             if target and duration:
                 try:
                     await target.timeout(discord.utils.utcnow() + discord.timedelta(seconds=duration))
-                    return await message.reply(f"⏳ Timed out {target} for {clean_msg.split()[-1]}", mention_author=False)
+                    return await message.channel.send(f"⏳ Timed out {target} for {clean_msg.split()[-1]}")
                 except:
-                    return await message.reply("❌ Could not timeout user.", mention_author=False)
+                    return await message.channel.send("❌ Could not timeout user.")
         if "kick" in clean_msg.lower():
             target = await extract_target_user(message)
             if target:
                 try:
                     await target.kick(reason="AI admin command")
-                    return await message.reply(f"✅ Kicked {target}", mention_author=False)
+                    return await message.channel.send(f"✅ Kicked {target}")
                 except:
-                    return await message.reply("❌ Could not kick user.", mention_author=False)
+                    return await message.channel.send("❌ Could not kick user.")
         if "ban" in clean_msg.lower():
             target = await extract_target_user(message)
             if target:
                 try:
                     await target.ban(reason="AI admin command")
-                    return await message.reply(f"✅ Banned {target}", mention_author=False)
+                    return await message.channel.send(f"✅ Banned {target}")
                 except:
-                    return await message.reply("❌ Could not ban user.", mention_author=False)
+                    return await message.channel.send("❌ Could not ban user.")
         if "delete" in clean_msg.lower():
             nums = re.findall(r"\d+", clean_msg)
             if nums:
                 amount = int(nums[0])
                 try:
                     await message.channel.purge(limit=amount + 1)
-                    return await message.send(f"🧹 Deleted {amount} messages.")
+                    return await message.channel.send(f"🧹 Deleted {amount} messages.")
                 except:
-                    return await message.reply("❌ Could not delete messages.", mention_author=False)
+                    return await message.channel.send("❌ Could not delete messages.")
     else:
         if any(word in clean_msg.lower() for word in ["timeout", "kick", "ban", "delete"]):
-            return await message.reply("❌ U r not an Admin lol", mention_author=False)
+            return await message.channel.send("❌ U r not an Admin lol")
 
     reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
-    await message.reply(reply, mention_author=False)
+    await message.channel.send(reply)
 
     await bot.process_commands(message)
 
 bot.run(TOKEN)
-
