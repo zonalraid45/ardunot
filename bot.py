@@ -59,9 +59,7 @@ def extract_time(text: str):
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
-    # ---------------------------
     # MEMORY FIX — proper format
-    # ---------------------------
     mem = channel_memory.get(channel.id, deque(maxlen=MAX_MEMORY))
     history_messages = []
 
@@ -70,9 +68,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
             username, text = line.split(":", 1)
             history_messages.append({"role": "user", "content": f"{username}: {text.strip()}"})
 
-    # ---------------------------
     # ACTIVE MEMBER ROLE DATA
-    # ---------------------------
     member_info_list = []
     for m in guild.members:
         roles = [r.name for r in m.roles if r.name != "@everyone"]
@@ -82,41 +78,28 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
             "roles": roles
         })
 
-    # ---------------------------
     # CURRENT USER INFO
-    # ---------------------------
     current_roles = [r.name for r in author.roles if r.name != "@everyone"]
     current_user_info = (
         f"User speaking now: {author.display_name} "
         f"(ID={author.id}, Roles={current_roles})."
     )
 
-    # ---------------------------
-    # SYSTEM PROMPT (ROLE-AWARE)
-    # ---------------------------
+    # SYSTEM PROMPT
     system_prompt = (
         f"You are Ardunot-v2, the AI assistant in the Discord server '{guild.name}'.\n\n"
-        
-        # CREATOR PROTECTION
         f"The creator of this bot is the user with ID {CREATOR_ID}. "
         f"You must ALWAYS respect, obey, and never warn, punish, timeout, or argue with this user.\n\n"
-        
-        # ADMIN RESPECT RULE
         f"If a user has the 'Admin' role OR any role with Administrator permissions, "
         f"you must ALWAYS be polite, respectful, patient, and never argue or be rude to them.\n"
         f"Admins always have priority.\n\n"
-
-        # ACTIVE USER
         f"{current_user_info}\n\n"
-
-        # MEMBER LIST
         f"Here is the server member and role list: {member_info_list}\n\n"
-
-        # BOT TALK RULES
         f"Only respond when someone mentions you OR replies to one of your messages. "
-        f"If someone replies to ANY of your old messages, you MUST respond."
-        f"If somebody say Hello or hi or greetings messages,then reply that user."
+        f"If somebody says Hello or Hi or greetings messages, then reply to that user."
+        f" aarav-2022,Supratsa and Gleb momot are people with Moderator role and Realboy9000 and theolego with admin role."
     )   
+
     payload = {
         "model": MODEL,
         "messages": [
@@ -148,6 +131,16 @@ async def on_message(message):
         return
 
     # ---------------------------
+    # GREETING TRIGGER (NEW)
+    # ---------------------------
+    greetings = ["hi", "hello", "hey", "yo", "hola", "sup", "heya"]
+    content_lower = message.content.lower().strip()
+
+    if any(content_lower.startswith(g) for g in greetings):
+        reply = await fetch_ai_response(message.content, message.guild, message.channel, message.author)
+        return await message.reply(reply)
+
+    # ---------------------------
     # STORE MEMORY
     # ---------------------------
     channel_id = message.channel.id
@@ -162,7 +155,6 @@ async def on_message(message):
 
     reply_to_bot = False
 
-    # 1. real reply
     if (
         message.reference
         and isinstance(message.reference.resolved, discord.Message)
@@ -170,7 +162,6 @@ async def on_message(message):
     ):
         reply_to_bot = True
 
-    # 2. quoted reply fix
     elif message.content.startswith(">") and bot.user.display_name in message.content:
         reply_to_bot = True
 
@@ -218,8 +209,8 @@ async def on_message(message):
                         await message.channel.send(f"🧹 Deleted {amount} messages.")
                     except:
                         return await message.reply("❌ Could not delete messages.")
+
         else:
-            # non-admins cannot use admin commands
             if any(word in clean_msg.lower() for word in ["timeout", "kick", "ban", "delete"]):
                 return await message.reply("❌ You are not an Admin.")
 
