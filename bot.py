@@ -157,16 +157,13 @@ async def set_funny_mode(ctx):
     await ctx.send("Bot Mode Switched: I am back to my old **Funny/Roasting** self. Mate, what a relief.")
 
 @bot.command(name='shush')
-@commands.check(is_admin) # <-- RE-ADDED ADMIN CHECK HERE
+@commands.check(is_admin) # <-- Admin/Owner Check for variable duration mute
 async def shush_bot(ctx, *args):
     """
     Shushes the bot in the current channel for a specified duration (default 10m).
     Only Admins or Owners can use this command.
-    Example: !shush 10m, !shush 1h
+    Example: !shush 30m, !shush 1h
     """
-    # This check ensures only Admins/Owners can use !shush
-    # The commands.check(is_admin) decorator handles the permission error.
-    
     # Default duration is 10 minutes (600 seconds)
     duration_seconds = 600
     duration_display = "10 minutes"
@@ -178,7 +175,8 @@ async def shush_bot(ctx, *args):
             duration_seconds = time_seconds
             duration_display = args[0]
         else:
-            await ctx.send("⚠️ Invalid duration format. Using default 10 minutes. Use formats like `10m`, `1h`.")
+            # Inform Admin about invalid format but still apply default mute
+            await ctx.send("⚠️ Invalid duration format provided. Using default 10 minutes. Use formats like `30m`, `1h`.")
 
     # Set the time the bot should resume talking
     resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
@@ -245,6 +243,7 @@ async def on_message(message):
         resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
         shushed_channels[channel_id] = resume_time
         
+        # Format the resume time for the user
         resume_time_str = discord.utils.format_dt(resume_time, 'T') # T = short time
         
         # Stop further processing and send the confirmation reply
