@@ -6,11 +6,16 @@ import aiohttp
 import asyncio
 import re
 
+# --- CONFIGURATION ---
 TOKEN = os.getenv("DISCORD_TOKEN")
 HF_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents)
+# Intents MUST include Message Content and Members for this structure to work.
+intents = discord.Intents.all() 
+# We keep the command_prefix here, even though we use slash commands, 
+# because your admin commands (timeout, kick, etc.) are currently handled
+# within the on_message event, not as formal commands.
+bot = commands.Bot(command_prefix="!", intents=intents) 
 
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
 MODEL = "meta-llama/Llama-3.2-3B-Instruct"
@@ -21,6 +26,7 @@ OWNER_IDS = {1020353220641558598, 1167443519070290051}
 MAX_MEMORY = 30
 channel_memory = {}
 
+# --- UTILITY FUNCTIONS ---
 def is_admin(member: discord.Member):
     return member.id in OWNER_IDS or any(role.permissions.administrator for role in member.roles)
 
@@ -80,19 +86,41 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
 
     return "⚠️ AI failed to respond."
 
+# --- SLASH COMMANDS ---
+@bot.tree.command(name="members", description="Displays the total member count in the server.")
+async def members_slash(interaction: discord.Interaction):
+    """Replies with the total number of members in the guild."""
+    member_count = interaction.guild.member_count
+    await interaction.response.send_message(f"👥 We got **{member_count}** members! Wowie, such a crowd! 😂", ephemeral=False)
+
+# --- BOT EVENTS ---
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    # Sync global commands. For production, sync to a specific guild ID.
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} slash commands.")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
 
 @bot.event
 async def on_message(message):
-    # CRITICAL: Ignore messages sent by THIS bot to prevent infinite loops.
+    # This prevents the bot from responding to its own messages.
     if message.author == bot.user:
         return
+        
+    # --- IMPORTANT: Admin Command and Chat Logic ---
+    # We must call process_commands first to handle any traditional prefix commands
+    # (though none are defined here, it's good practice).
+    # NOTE: Slash commands are NOT handled here, but by the bot.tree.command decorator.
+    await bot.process_commands(message)
 
-    # All other messages, including those from other bots, will now be processed.
-    # The previous fix (removing 'if message.author.bot: return') ensured this.
-    
+    # If the message starts with '/' it's likely a slash command call that was already handled 
+    # or is being typed, so we skip the AI chat logic to avoid confusion.
+    if message.content.startswith('/'):
+        return
+
     channel_id = message.channel.id
     if channel_id not in channel_memory:
         channel_memory[channel_id] = deque(maxlen=MAX_MEMORY)
@@ -100,6 +128,7 @@ async def on_message(message):
 
     clean_msg = message.content.strip()
 
+    # --- ADMIN COMMANDS (Handled as text triggers, NOT commands.Bot commands) ---
     if is_admin(message.author):
         if "timeout" in clean_msg.lower():
             target = await extract_target_user(message)
@@ -139,9 +168,8 @@ async def on_message(message):
         if any(word in clean_msg.lower() for word in ["timeout", "kick", "ban", "delete"]):
             return await message.channel.send("❌ U r not an Admin lol")
 
+    # --- AI CHAT RESPONSE ---
     reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
     await message.channel.send(reply)
-
-    await bot.process_commands(message)
 
 bot.run(TOKEN)
