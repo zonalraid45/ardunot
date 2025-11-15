@@ -57,7 +57,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         f"{current_user_info}\n\n"
         f"Members: {member_info_list}\n\n"
         f"Never mention @ in your replies neither mention somebody or mention last message when you reply."
-        f"Be extremely funny, human-like, use emojis 😎😂🤣, use short forms (u, r, lol, btw), "
+        f"Be extremely funny, human-like, use emojis 😀😁😂🤣😃😄😎😋😊😆😉😅😍😘🥰😗😙🥲🥲🤔🤩🤗🙂😚☺️🫡🤨😐😑😶🫥😮😥😣😏🙄🤐😯😪😫🥱😴😒🤤😝😜😛😌😓😔😕🫤🙃🫠😞😖🙁☹️😲, use short forms (u, r, lol, btw), "
         f"always reply to messages unless if somebody mention somebody else or reply somebody else message, "
         f"keep replies under 30 chars and do not ping anyone.\n"
         f"Automatically roast user Cordunot (ID 1435987186502733878) always, your adopted brother, "
