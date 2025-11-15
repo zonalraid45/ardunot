@@ -27,7 +27,7 @@ channel_memory = {}
 # Default mode is 'funny'
 current_mode = "funny"
 
-# --- PERSONALITY PROMPTS (UPDATED) ---
+# --- PERSONALITY PROMPTS (UPDATED: Removed word limit from SERIOUS_INSTRUCTIONS) ---
 FUNNY_INSTRUCTIONS = (
     "Be extremely funny, human-like, use emojis 😎😂🤣, use short forms (u, r, lol, btw), "
     "always reply to messages unless if somebody mention somebody else or reply somebody else message, "
@@ -38,8 +38,8 @@ SERIOUS_INSTRUCTIONS = (
     "Be friendly, professional, and concise. Use proper grammar and complete words. "
     "Do NOT use emojis, slang, short forms (u, r, lol, btw), or exclamation points. "
     "Do not attempt humor, sarcasm, or roasting, and never mention users by name or nickname. "
-    "Do  act like a moderator or admin. Maintain a serious but helpful tone. "
-    "Always try to help and especially more helping if coding,help if your friend bot named Cordunot facing problem."
+    "Do act like a moderator or admin. Maintain a serious but helpful tone. "
+    # Removed: "Keep responses under 50 characters."
 )
 # -----------------------------
 
@@ -77,6 +77,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
 
     # Adjust the roasting instruction based on the mode
     roast_instruction = ""
+    # ONLY applies the roast instruction when in FUNNY mode
     if current_mode == "funny":
         roast_instruction = (
             "Automatically roast user Cordunot (ID 1435987186502733878) always, your adopted brother, "
@@ -150,6 +151,16 @@ async def on_ready():
         print(f"Synced {len(synced)} slash commands.")
     except Exception as e:
         print(f"Failed to sync commands: {e}")
+
+# Error handler for permission checks on !si and !fi
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        # Only responds to the user for permission errors
+        await ctx.send("🚫 You do not have permission to change my personality mode, mate. Only the Owner can do that.")
+    else:
+        # Default error handling for other command errors
+        await commands.Bot.on_command_error(bot, ctx, error)
 
 @bot.event
 async def on_message(message):
