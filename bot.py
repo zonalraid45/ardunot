@@ -248,13 +248,13 @@ async def on_message(message):
     is_admin_user = is_admin(message.author)
     
     # ----------------------------------------------------
-    # --- MUTE BOT FOR 10M BY ANY MEMBER (Mention + Keyword) ---
+    # --- MUTE BOT FOR 3M (180s) BY ANY MEMBER (Mention + Keyword) ---
     # ----------------------------------------------------
     # Check if bot is mentioned AND the message contains the word "stop" or "plz stop" (case-insensitive)
     if bot.user.mentioned_in(message) and any(word in clean_msg.lower() for word in ["stop", "plz stop"]):
         
-        # Mute duration is fixed at 10 minutes (600 seconds) for ordinary users
-        duration_seconds = 600 
+        # Mute duration is fixed at 3 minutes (180 seconds) for ordinary users
+        duration_seconds = 180 # <--- Changed from 600 to 180 seconds
         resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
         shushed_channels[channel_id] = resume_time
         
@@ -262,7 +262,7 @@ async def on_message(message):
         resume_time_str = discord.utils.format_dt(resume_time, 'T') # T = short time
         
         # Stop further processing and send the confirmation reply
-        return await message.channel.send(f"🤐 Ok, I hear u, I'll be quiet for **10 minutes** in this channel (until {resume_time_str}).")
+        return await message.channel.send(f"🤐 Ok, I hear u, I'll be quiet for **3 minutes** in this channel (until {resume_time_str}).")
 
 
     # ----------------------------------------------------
