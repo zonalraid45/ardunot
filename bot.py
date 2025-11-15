@@ -84,7 +84,9 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if message.author.bot:
+    # This check is now removed to allow the bot to respond to other bots.
+    # We must ensure we don't reply to ourselves to prevent an infinite loop.
+    if message.author == bot.user:
         return
 
     channel_id = message.channel.id
