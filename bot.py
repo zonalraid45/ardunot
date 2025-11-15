@@ -23,11 +23,11 @@ OWNER_IDS = {1020353220641558598, 1167443519070290051}
 MAX_MEMORY = 30
 channel_memory = {}
 
-# --- BOT STATE VARIABLE (NEW) ---
+# --- BOT STATE VARIABLE ---
 # Default mode is 'funny'
 current_mode = "funny"
 
-# --- PERSONALITY PROMPTS ---
+# --- PERSONALITY PROMPTS (UPDATED) ---
 FUNNY_INSTRUCTIONS = (
     "Be extremely funny, human-like, use emojis 😎😂🤣, use short forms (u, r, lol, btw), "
     "always reply to messages unless if somebody mention somebody else or reply somebody else message, "
@@ -35,8 +35,10 @@ FUNNY_INSTRUCTIONS = (
 )
 
 SERIOUS_INSTRUCTIONS = (
-    "Be friendly, professional, and concise. Do NOT use emojis, slang, or short forms (u, r, lol). "
-    "Do not attempt humor or roasting. Maintain a serious but helpful tone. "
+    "Be friendly, professional, and concise. Use proper grammar and complete words. "
+    "Do NOT use emojis, slang, short forms (u, r, lol, btw), or exclamation points. "
+    "Do not attempt humor, sarcasm, or roasting, and never mention users by name or nickname. "
+    "Do NOT act like a moderator or admin. Maintain a serious but helpful tone. "
     "Keep responses under 50 characters."
 )
 # -----------------------------
@@ -73,16 +75,23 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
     # Select the instructions based on the current mode
     personality_instructions = SERIOUS_INSTRUCTIONS if current_mode == "serious" else FUNNY_INSTRUCTIONS
 
+    # Adjust the roasting instruction based on the mode
+    roast_instruction = ""
+    if current_mode == "funny":
+        roast_instruction = (
+            "Automatically roast user Cordunot (ID 1435987186502733878) always, your adopted brother, "
+            "but if he is silent for 5 mins, stop until he messages again."
+        )
+
     system_prompt = (
-        f"You are Ardunot-v2, the funniest AI in '{guild.name}'.\n\n"
+        f"You are Ardunot-v2, a friendly, non-moderator AI in '{guild.name}'.\n\n"
         f"Call Realboy9000 'mate'. Never reveal IDs. Never say who made you.\n\n"
         f"Admins always have priority.\n\n"
         f"{current_user_info}\n\n"
         f"Members: {member_info_list}\n\n"
         f"Never mention @ in your replies neither mention somebody or mention last message when you reply."
         f"{personality_instructions}\n" # Insert dynamic instructions
-        f"Automatically roast user Cordunot (ID 1435987186502733878) always, your adopted brother, "
-        f"but if he is silent for 5 mins, stop until he messages again.\n"
+        f"{roast_instruction}\n" # Insert dynamic roasting instruction
         f"Talk also when chat is dead.\n"
         f"Moderators: aarav-2022, Supratsa, Gleb momot. Admins: Realboy9000, theolego."
     )
@@ -115,14 +124,13 @@ async def members_slash(interaction: discord.Interaction):
     await interaction.response.send_message(f"👥 We got **{member_count}** members! Wowie, such a crowd! 😂", ephemeral=False)
 
 # --- PREFIX COMMANDS (!si and !fi) ---
-
 @bot.command(name='si')
 @commands.check(is_owner_id)
 async def set_serious_mode(ctx):
     """Sets the bot to Serious/Friendly mode (!si). Only for OWNER_IDS."""
     global current_mode
     current_mode = "serious"
-    await ctx.send("🤖 **Mode Switched:** I am now in **Serious/Friendly** operating mode.")
+    await ctx.send("Bot Mode Switched: I am now in Serious/Friendly operating mode.")
 
 @bot.command(name='fi')
 @commands.check(is_owner_id)
@@ -130,7 +138,7 @@ async def set_funny_mode(ctx):
     """Sets the bot back to Funny/Roasting mode (!fi). Only for OWNER_IDS."""
     global current_mode
     current_mode = "funny"
-    await ctx.send("😂 **Mode Switched:** I am back to my old **Funny/Roasting** self. Mate, what a relief.")
+    await ctx.send("Bot Mode Switched: I am back to my old Funny/Roasting self. Mate, what a relief.")
 
 # --- BOT EVENTS ---
 @bot.event
@@ -150,7 +158,6 @@ async def on_message(message):
         return
         
     # Process prefix commands (!si, !fi) and ensure they are handled first.
-    # If the message is a valid command, the execution stops here.
     await bot.process_commands(message)
 
     # Skip AI chat logic if it was a slash command (which starts with /)
@@ -166,7 +173,6 @@ async def on_message(message):
 
     # --- ADMIN COMMANDS (Text Triggers) ---
     if is_admin(message.author):
-        # Admin text commands are kept here as they were defined previously
         if "timeout" in clean_msg.lower():
             target = await extract_target_user(message)
             duration = extract_time(clean_msg)
@@ -176,7 +182,6 @@ async def on_message(message):
                     return await message.channel.send(f"⏳ Timed out {target} for {clean_msg.split()[-1]}")
                 except:
                     return await message.channel.send("❌ Could not timeout user.")
-        # ... (kick, ban, delete commands remain the same)
         if "kick" in clean_msg.lower():
             target = await extract_target_user(message)
             if target:
