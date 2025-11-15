@@ -142,7 +142,7 @@ async def members_slash(interaction: discord.Interaction):
     await interaction.response.send_message(f"👥 We got **{member_count}** members! Wowie, such a crowd! 😂", ephemeral=False)
 
 # ------------------------------------
-# --- PREFIX COMMANDS (!si, !fi, and !shush) ---
+# --- PREFIX COMMANDS (!si, !fi, !shush, !rshush) ---
 # ------------------------------------
 
 @bot.command(name='si')
@@ -162,35 +162,43 @@ async def set_funny_mode(ctx):
     await ctx.send("Bot Mode Switched: I am back to my old **Funny/Roasting** self. Mate, what a relief.")
 
 @bot.command(name='shush')
-@commands.check(check_if_admin) # <-- Using the corrected command check
+@commands.check(check_if_admin) # Admin/Owner Check for variable duration mute
 async def shush_bot(ctx, *args):
     """
     Shushes the bot in the current channel for a specified duration (default 10m).
     Only Admins or Owners can use this command.
     Example: !shush 30m, !shush 1h
     """
-    # Default duration is 10 minutes (600 seconds)
     duration_seconds = 600
     duration_display = "10 minutes"
     
-    # Check for a specific duration in the arguments
     if args:
         time_seconds = extract_time(args[0])
         if time_seconds is not None:
             duration_seconds = time_seconds
             duration_display = args[0]
         else:
-            # Inform Admin about invalid format but still apply default mute
             await ctx.send("⚠️ Invalid duration format provided. Using default 10 minutes. Use formats like `30m`, `1h`.")
 
-    # Set the time the bot should resume talking
     resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
     shushed_channels[ctx.channel.id] = resume_time
     
-    # Format the resume time for the user
     resume_time_str = discord.utils.format_dt(resume_time, 'T') # T = short time
     
     await ctx.send(f"🔇 Admin Mute: I'll be quiet in this channel until **{resume_time_str}** ({duration_display}).")
+
+
+@bot.command(name='rshush')
+async def resume_shush(ctx):
+    """
+    Allows everyone to instantly make the bot talk again, overriding any active mute.
+    """
+    channel_id = ctx.channel.id
+    if channel_id in shushed_channels:
+        del shushed_channels[channel_id]
+        await ctx.send("🔊 Mute lifted! Thanks for calling me back, mate! What's up? 😎")
+    else:
+        await ctx.send("🤔 I wasn't muted here, mate. But I'm always ready to chat! 😂")
 
 # ------------------------------------
 # --- BOT EVENTS ---
@@ -228,8 +236,7 @@ async def on_message(message):
     if message.author == bot.user:
         return
         
-    # Process prefix commands (!si, !fi, !shush, etc.) first.
-    # NOTE: This is where prefix commands are processed, including the fixed !shush check.
+    # Process prefix commands (!si, !fi, !shush, !rshush, etc.) first.
     await bot.process_commands(message)
 
     # Skip AI chat logic if it was a slash command (which starts with /)
