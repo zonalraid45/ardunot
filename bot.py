@@ -50,8 +50,13 @@ SERIOUS_INSTRUCTIONS = (
 
 # --- UTILITY FUNCTIONS ---
 def is_admin(member: discord.Member):
-    """Checks if a member is an owner or has administrator permissions."""
+    """Checks if a member is an owner or has administrator permissions. Used internally."""
     return member.id in OWNER_IDS or any(role.permissions.administrator for role in member.roles)
+
+# NEW CHECK: Designed to be used with @commands.check
+def check_if_admin(ctx):
+    """A predicate used with @commands.check that validates the command author's admin status."""
+    return is_admin(ctx.author)
 
 # Custom check for the command to ensure only OWNER_IDS can use it
 def is_owner_id(ctx):
@@ -157,7 +162,7 @@ async def set_funny_mode(ctx):
     await ctx.send("Bot Mode Switched: I am back to my old **Funny/Roasting** self. Mate, what a relief.")
 
 @bot.command(name='shush')
-@commands.check(is_admin) # <-- Admin/Owner Check for variable duration mute
+@commands.check(check_if_admin) # <-- Using the corrected command check
 async def shush_bot(ctx, *args):
     """
     Shushes the bot in the current channel for a specified duration (default 10m).
@@ -212,6 +217,8 @@ async def on_command_error(ctx, error):
         else:
             await ctx.send("🚫 You do not have permission to use that command.")
     else:
+        # Default error handling for other command errors
+        print(f"Unhandled Command Error: {error}")
         await commands.Bot.on_command_error(bot, ctx, error)
 
 @bot.event
@@ -222,6 +229,7 @@ async def on_message(message):
         return
         
     # Process prefix commands (!si, !fi, !shush, etc.) first.
+    # NOTE: This is where prefix commands are processed, including the fixed !shush check.
     await bot.process_commands(message)
 
     # Skip AI chat logic if it was a slash command (which starts with /)
