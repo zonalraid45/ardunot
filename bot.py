@@ -115,7 +115,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         # BOT TALK RULES
         f"Only respond when someone mentions you OR replies to one of your messages. "
         f"If someone replies to ANY of your old messages, you MUST respond."
-    )
+    )   f"If somebody say Hello or hi or greetings messages,then reply."
 
     payload = {
         "model": MODEL,
