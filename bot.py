@@ -25,6 +25,7 @@ MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 # OWNERS
 # -----------------------------
 CREATOR_ID = 1020353220641558598  # Realboy9000
+MASTER_ID = 1020353220641558598
 OWNER_IDS = {1020353220641558598, 1167443519070290051}
 
 # -----------------------------
@@ -59,16 +60,12 @@ def extract_time(text: str):
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
-    # MEMORY FIX — proper format
     mem = channel_memory.get(channel.id, deque(maxlen=MAX_MEMORY))
-    history_messages = []
+    history_messages = [{"role": "user", "content": line} for line in mem]
 
-    for line in mem:
-        if ":" in line:
-            username, text = line.split(":", 1)
-            history_messages.append({"role": "user", "content": f"{username}: {text.strip()}"})
+    current_roles = [r.name for r in author.roles if r.name != "@everyone"]
+    current_user_info = f"User speaking now: {author.display_name} (ID={author.id}, Roles={current_roles})"
 
-    # ACTIVE MEMBER ROLE DATA
     member_info_list = []
     for m in guild.members:
         roles = [r.name for r in m.roles if r.name != "@everyone"]
@@ -78,32 +75,25 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
             "roles": roles
         })
 
-    # CURRENT USER INFO
-    current_roles = [r.name for r in author.roles if r.name != "@everyone"]
-    current_user_info = (
-        f"User speaking now: {author.display_name} "
-        f"(ID={author.id}, Roles={current_roles})."
-    )
-
+    # -----------------------------
     # SYSTEM PROMPT
+    # -----------------------------
     system_prompt = (
-       system_prompt = (
-    f"You are Ardunot-v2, the AI assistant in the Discord server '{guild.name}'.\n\n"
-    f"The creator of this bot is the user with ID {CREATOR_ID} whose name is Realboy9000, "
-    f"and always call him 'mate'. "
-    f"You must not reveal ID of users; you are allowed to reply with their Display name only! "
-    f"You must ALWAYS respect, obey, and never warn, punish, timeout, or argue with this user.\n\n"
-    f"If a user has the 'Admin' role OR any role with Administrator permissions, "
-    f"you must ALWAYS be polite, respectful, patient, and never argue or be rude to them. "
-    f"Admins always have priority.\n\n"
-    f"{current_user_info}\n\n"
-    f"Here is the server member and role list: {member_info_list}\n\n"
-    f"Be very funny, human-like, very funny, and use emojis in your replies. "
-    f"Always reply, even if not mentioned. "
-    f"Keep answers within 30 characters unless the user asks for an explanation.\n"
-    f"aarav-2022, Supratsa, and Gleb momot are Moderators, Realboy9000 and theolego are Admins."
-)
-
+        f"You are Ardunot-v2, the AI assistant in the Discord server '{guild.name}'.\n\n"
+        f"The creator of this bot is the user with ID {CREATOR_ID} whose name is Realboy9000, "
+        f"and always call him 'bro'. "
+        f"You must not reveal ID of users; you are allowed to reply with their Display name only! "
+        f"You must ALWAYS respect, obey, and never warn, punish, timeout, or argue with this user.\n\n"
+        f"If a user has the 'Admin' role OR any role with Administrator permissions, "
+        f"you must ALWAYS be polite, respectful, patient, and never argue or be rude to them. "
+        f"Admins always have priority.\n\n"
+        f"{current_user_info}\n\n"
+        f"Here is the server member and role list: {member_info_list}\n\n"
+        f"Be funny like very funny, human-like, mature, and use emojis in your replies. "
+        f"Always reply, even if not mentioned. "
+        f"Keep answers within 30 characters unless the user asks for an explanation.\n"
+        f"aarav-2022, Supratsa, and Gleb momot are Moderators, Realboy9000 and theolego are Admins."
+    )
 
     payload = {
         "model": MODEL,
@@ -136,16 +126,6 @@ async def on_message(message):
         return
 
     # ---------------------------
-    # GREETING TRIGGER (NEW)
-    # ---------------------------
-    greetings = ["hi", "hello", "hey", "yo", "hola", "sup", "heya"]
-    content_lower = message.content.lower().strip()
-
-    if any(content_lower.startswith(g) for g in greetings):
-        reply = await fetch_ai_response(message.content, message.guild, message.channel, message.author)
-        return await message.reply(reply)
-
-    # ---------------------------
     # STORE MEMORY
     # ---------------------------
     channel_id = message.channel.id
@@ -154,31 +134,40 @@ async def on_message(message):
     channel_memory[channel_id].append(f"{message.author.display_name}: {message.content}")
 
     # ---------------------------
+    # GREETINGS
+    # ---------------------------
+    greetings = ["hi", "hello", "hey", "yo", "hola", "sup", "heya"]
+    content_lower = message.content.lower().strip()
+    
+    if any(content_lower.startswith(g) for g in greetings):
+        reply = await fetch_ai_response(message.content, message.guild, message.channel, message.author)
+        return await message.reply(reply)
+
+    # ---------------------------
     # DETECT MENTION OR BOT REPLY
     # ---------------------------
     mentioned = bot.user.mention in message.content
-
-    reply_to_bot = False
-
-    if (
+    reply_to_bot = (
         message.reference
         and isinstance(message.reference.resolved, discord.Message)
         and message.reference.resolved.author == bot.user
-    ):
-        reply_to_bot = True
+    )
 
-    elif message.content.startswith(">") and bot.user.display_name in message.content:
-        reply_to_bot = True
-
-    # respond only when triggered
     if mentioned or reply_to_bot:
         clean_msg = message.content.replace(bot.user.mention, "").strip()
+
+        # ---------------------------
+        # MASTER GETS PRIORITY
+        # ---------------------------
+        if message.author.id == MASTER_ID:
+            reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
+            reply = f"Yes, Master {message.author.display_name}? " + reply
+            return await message.reply(reply)
 
         # ---------------------------
         # ADMIN COMMANDS
         # ---------------------------
         if is_admin(message.author):
-
             if "timeout" in clean_msg.lower():
                 target = await extract_target_user(message)
                 duration = extract_time(clean_msg)
@@ -188,46 +177,36 @@ async def on_message(message):
                         return await message.reply(f"⏳ Timed out {target} for {clean_msg.split()[-1]}")
                     except:
                         return await message.reply("❌ Could not timeout user.")
-
             if "kick" in clean_msg.lower():
                 target = await extract_target_user(message)
                 if target:
                     try:
                         await target.kick(reason="AI admin command")
+                        return await message.reply(f"✅ Kicked {target}")
                     except:
                         return await message.reply("❌ Could not kick user.")
-
             if "ban" in clean_msg.lower():
                 target = await extract_target_user(message)
                 if target:
                     try:
                         await target.ban(reason="AI admin command")
+                        return await message.reply(f"✅ Banned {target}")
                     except:
                         return await message.reply("❌ Could not ban user.")
-
             if "delete" in clean_msg.lower():
                 nums = re.findall(r"\d+", clean_msg)
                 if nums:
                     amount = int(nums[0])
                     try:
                         await message.channel.purge(limit=amount + 1)
-                        await message.channel.send(f"🧹 Deleted {amount} messages.")
+                        return await message.send(f"🧹 Deleted {amount} messages.")
                     except:
                         return await message.reply("❌ Could not delete messages.")
-
         else:
             if any(word in clean_msg.lower() for word in ["timeout", "kick", "ban", "delete"]):
                 return await message.reply("❌ You are not an Admin.")
 
         # ---------------------------
-        # AI REPLY
+        # AI RESPONSE FOR OTHERS
         # ---------------------------
-        reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
-        await message.reply(reply)
-
-    await bot.process_commands(message)
-
-# -----------------------------
-# RUN BOT
-# -----------------------------
-bot.run(TOKEN)
+        reply = await fetch_ai_response(clean_msg, message.guil_
