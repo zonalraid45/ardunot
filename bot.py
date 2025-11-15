@@ -37,11 +37,7 @@ channel_memory = {}  # {channel_id: deque([...])}
 # HELPERS
 # -----------------------------
 def is_admin(member: discord.Member):
-    if member.id in OWNER_IDS:
-        return True
-    if any(role.permissions.administrator for role in member.roles):
-        return True
-    return False
+    return member.id in OWNER_IDS or any(role.permissions.administrator for role in member.roles)
 
 async def extract_target_user(message: discord.Message):
     return message.mentions[0] if message.mentions else None
@@ -59,48 +55,26 @@ def extract_time(text: str):
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
-    # MEMORY FIX — proper format
+    # MEMORY
     mem = channel_memory.get(channel.id, deque(maxlen=MAX_MEMORY))
-    history_messages = []
+    history_messages = [{"role": "user", "content": line} for line in mem]
 
-    for line in mem:
-        if ":" in line:
-            username, text = line.split(":", 1)
-            history_messages.append({"role": "user", "content": f"{username}: {text.strip()}"})
+    # MEMBERS INFO
+    member_info_list = [{"id": m.id, "name": m.display_name, "roles": [r.name for r in m.roles if r.name != "@everyone"]} for m in guild.members]
 
-    # ACTIVE MEMBER ROLE DATA
-    member_info_list = []
-    for m in guild.members:
-        roles = [r.name for r in m.roles if r.name != "@everyone"]
-        member_info_list.append({
-            "id": m.id,
-            "name": m.display_name,
-            "roles": roles
-        })
+    current_user_info = f"User speaking now: {author.display_name} (ID={author.id}, Roles={[r.name for r in author.roles if r.name != '@everyone']})"
 
-    # CURRENT USER INFO
-    current_roles = [r.name for r in author.roles if r.name != "@everyone"]
-    current_user_info = (
-        f"User speaking now: {author.display_name} "
-        f"(ID={author.id}, Roles={current_roles})."
-    )
-
-    # -----------------------------
     # SYSTEM PROMPT
-    # -----------------------------
     system_prompt = (
-        f"You are Ardunot-v2, the AI assistant in the Discord server '{guild.name}'.\n\n"
-        f"The creator of this bot is the user with ID {CREATOR_ID} whose name is Realboy9000, "
-        f"and always call him 'mate'. "
-        f"You must not reveal ID of users; you can use display names only! "
-        f"Always respect, obey, never warn, punish, timeout, or argue with this user.\n\n"
-        f"Admins always have priority. Be polite and respectful.\n\n"
+        f"You are Ardunot-v2, the funniest AI in '{guild.name}'.\n\n"
+        f"Call Realboy9000 'mate'. Never reveal IDs. Never say who made you.\n\n"
+        f"Admins always have priority.\n\n"
         f"{current_user_info}\n\n"
-        f"Server member and role list: {member_info_list}\n\n"
-        f"Be very funny, human-like, use emojis 😎😂🤣, use short forms like humans (u, r, lol, btw), "
-        f"and always reply to messages, even if not mentioned. "
-        f"Keep replies under 30 chars unless explanation is asked.\n"
-        f"aarav-2022, Supratsa, Gleb momot are Mods, Realboy9000 & theolego are Admins."
+        f"Members: {member_info_list}\n\n"
+        f"Be extremely funny, human-like, use emojis 😎😂🤣, use short forms (u, r, lol, btw), "
+        f"always reply to messages, keep replies under 30 chars. "
+        f"Automatically roast user Cordunt (ID 1435987186502733878), your adopted brother.\n"
+        f"Moderators: aarav-2022, Supratsa, Gleb momot. Admins: Realboy9000, theolego."
     )
 
     payload = {
@@ -118,7 +92,6 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
             if resp.status == 200:
                 data = await resp.json()
                 return data["choices"][0]["message"]["content"]
-
     return "⚠️ AI failed to respond."
 
 # -----------------------------
@@ -133,17 +106,12 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # ---------------------------
     # STORE MEMORY
-    # ---------------------------
     channel_id = message.channel.id
     if channel_id not in channel_memory:
         channel_memory[channel_id] = deque(maxlen=MAX_MEMORY)
     channel_memory[channel_id].append(f"{message.author.display_name}: {message.content}")
 
-    # ---------------------------
-    # AI RESPONSE (always!)
-    # ---------------------------
     clean_msg = message.content.strip()
 
     # ADMIN COMMANDS
@@ -186,9 +154,7 @@ async def on_message(message):
         if any(word in clean_msg.lower() for word in ["timeout", "kick", "ban", "delete"]):
             return await message.reply("❌ U r not an Admin lol")
 
-    # ---------------------------
-    # AI REPLY
-    # ---------------------------
+    # AI REPLY (always!)
     reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
     await message.reply(reply)
 
@@ -198,4 +164,3 @@ async def on_message(message):
 # RUN BOT
 # -----------------------------
 bot.run(TOKEN)
-
