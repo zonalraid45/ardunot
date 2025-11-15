@@ -12,9 +12,6 @@ HF_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # Intents MUST include Message Content and Members for this structure to work.
 intents = discord.Intents.all() 
-# We keep the command_prefix here, even though we use slash commands, 
-# because your admin commands (timeout, kick, etc.) are currently handled
-# within the on_message event, not as formal commands.
 bot = commands.Bot(command_prefix="!", intents=intents) 
 
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
@@ -26,9 +23,32 @@ OWNER_IDS = {1020353220641558598, 1167443519070290051}
 MAX_MEMORY = 30
 channel_memory = {}
 
+# --- BOT STATE VARIABLE (NEW) ---
+# Default mode is 'funny'
+current_mode = "funny"
+
+# --- PERSONALITY PROMPTS ---
+FUNNY_INSTRUCTIONS = (
+    "Be extremely funny, human-like, use emojis 😎😂🤣, use short forms (u, r, lol, btw), "
+    "always reply to messages unless if somebody mention somebody else or reply somebody else message, "
+    "keep replies under 30 chars and do not ping anyone."
+)
+
+SERIOUS_INSTRUCTIONS = (
+    "Be friendly, professional, and concise. Do NOT use emojis, slang, or short forms (u, r, lol). "
+    "Do not attempt humor or roasting. Maintain a serious but helpful tone. "
+    "Keep responses under 50 characters."
+)
+# -----------------------------
+
+
 # --- UTILITY FUNCTIONS ---
 def is_admin(member: discord.Member):
     return member.id in OWNER_IDS or any(role.permissions.administrator for role in member.roles)
+
+# Custom check for the command to ensure only OWNER_IDS can use it
+def is_owner_id(ctx):
+    return ctx.author.id in OWNER_IDS
 
 async def extract_target_user(message: discord.Message):
     return message.mentions[0] if message.mentions else None
@@ -41,14 +61,17 @@ def extract_time(text: str):
     return num * {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
 
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
+    global current_mode
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
     mem = channel_memory.get(channel.id, deque(maxlen=MAX_MEMORY))
     history_messages = [{"role": "user", "content": line} for line in mem]
 
     member_info_list = [{"id": m.id, "name": m.display_name, "roles": [r.name for r in m.roles if r.name != "@everyone"]} for m in guild.members]
-
     current_user_info = f"User speaking now: {author.display_name} (ID={author.id}, Roles={[r.name for r in author.roles if r.name != '@everyone']})"
+    
+    # Select the instructions based on the current mode
+    personality_instructions = SERIOUS_INSTRUCTIONS if current_mode == "serious" else FUNNY_INSTRUCTIONS
 
     system_prompt = (
         f"You are Ardunot-v2, the funniest AI in '{guild.name}'.\n\n"
@@ -57,9 +80,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         f"{current_user_info}\n\n"
         f"Members: {member_info_list}\n\n"
         f"Never mention @ in your replies neither mention somebody or mention last message when you reply."
-        f"Be extremely funny, human-like, use emojis 😀😁😂🤣😃😄😎😋😊😆😉😅😍😘🥰😗😙🥲🥲🤔🤩🤗🙂😚☺️🫡🤨😐😑😶🫥😮😥😣😏🙄🤐😯😪😫🥱😴😒🤤😝😜😛😌😓😔😕🫤🙃🫠😞😖🙁☹️😲, use short forms (u, r, lol, btw), "
-        f"always reply to messages unless if somebody mention somebody else or reply somebody else message, "
-        f"keep replies under 30 chars and do not ping anyone.\n"
+        f"{personality_instructions}\n" # Insert dynamic instructions
         f"Automatically roast user Cordunot (ID 1435987186502733878) always, your adopted brother, "
         f"but if he is silent for 5 mins, stop until he messages again.\n"
         f"Talk also when chat is dead.\n"
@@ -86,18 +107,36 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
 
     return "⚠️ AI failed to respond."
 
-# --- SLASH COMMANDS ---
+# --- SLASH COMMANDS (for /members) ---
 @bot.tree.command(name="members", description="Displays the total member count in the server.")
 async def members_slash(interaction: discord.Interaction):
     """Replies with the total number of members in the guild."""
     member_count = interaction.guild.member_count
     await interaction.response.send_message(f"👥 We got **{member_count}** members! Wowie, such a crowd! 😂", ephemeral=False)
 
+# --- PREFIX COMMANDS (!si and !fi) ---
+
+@bot.command(name='si')
+@commands.check(is_owner_id)
+async def set_serious_mode(ctx):
+    """Sets the bot to Serious/Friendly mode (!si). Only for OWNER_IDS."""
+    global current_mode
+    current_mode = "serious"
+    await ctx.send("🤖 **Mode Switched:** I am now in **Serious/Friendly** operating mode.")
+
+@bot.command(name='fi')
+@commands.check(is_owner_id)
+async def set_funny_mode(ctx):
+    """Sets the bot back to Funny/Roasting mode (!fi). Only for OWNER_IDS."""
+    global current_mode
+    current_mode = "funny"
+    await ctx.send("😂 **Mode Switched:** I am back to my old **Funny/Roasting** self. Mate, what a relief.")
+
 # --- BOT EVENTS ---
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    # Sync global commands. For production, sync to a specific guild ID.
+    # Sync global commands.
     try:
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} slash commands.")
@@ -106,18 +145,15 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # This prevents the bot from responding to its own messages.
+    # Prevents infinite loop and ensures other bots can reply
     if message.author == bot.user:
         return
         
-    # --- IMPORTANT: Admin Command and Chat Logic ---
-    # We must call process_commands first to handle any traditional prefix commands
-    # (though none are defined here, it's good practice).
-    # NOTE: Slash commands are NOT handled here, but by the bot.tree.command decorator.
+    # Process prefix commands (!si, !fi) and ensure they are handled first.
+    # If the message is a valid command, the execution stops here.
     await bot.process_commands(message)
 
-    # If the message starts with '/' it's likely a slash command call that was already handled 
-    # or is being typed, so we skip the AI chat logic to avoid confusion.
+    # Skip AI chat logic if it was a slash command (which starts with /)
     if message.content.startswith('/'):
         return
 
@@ -128,8 +164,9 @@ async def on_message(message):
 
     clean_msg = message.content.strip()
 
-    # --- ADMIN COMMANDS (Handled as text triggers, NOT commands.Bot commands) ---
+    # --- ADMIN COMMANDS (Text Triggers) ---
     if is_admin(message.author):
+        # Admin text commands are kept here as they were defined previously
         if "timeout" in clean_msg.lower():
             target = await extract_target_user(message)
             duration = extract_time(clean_msg)
@@ -139,6 +176,7 @@ async def on_message(message):
                     return await message.channel.send(f"⏳ Timed out {target} for {clean_msg.split()[-1]}")
                 except:
                     return await message.channel.send("❌ Could not timeout user.")
+        # ... (kick, ban, delete commands remain the same)
         if "kick" in clean_msg.lower():
             target = await extract_target_user(message)
             if target:
