@@ -33,10 +33,9 @@ GLOBAL_DEFAULT_MODE = "serious" # CHANGED: Default mode is now "serious"
 RATE_WINDOW_SECONDS = 60
 
 RATE_LIMITS = {
-    "serious": 6,   # CHANGED: 1 msg per 10 sec = 6 msg/min
-    "funny": 6      # CHANGED: 1 msg per 10 sec = 6 msg/min
+    "serious": 6,    # CHANGED: 1 msg per 10 sec = 6 msg/min
+    "funny": 6       # 1 msg per 10 sec = 6 msg/min
 }
-
 # BOT_CHANNEL_LIMIT removed
 rate_buckets = {}  # guild_id -> deque timestamps
 # -----------------------------
