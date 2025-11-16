@@ -11,14 +11,22 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Send message to Discord channel
+      - name: Send message safely
         env:
           DISCORD_TOKEN: ${{ secrets.D }}
           CHANNEL_ID: "1435926773907980370"
         run: |
-          MSG_CONTENT=$(cat msg.txt)
+          # Read msg.txt and escape it into proper JSON
+          CONTENT=$(jq -Rs . < msg.txt)
 
+          # Create JSON body safely
+          echo "{\"content\": $CONTENT}" > body.json
+
+          # Send to Discord
           curl -X POST "https://discord.com/api/v10/channels/$CHANNEL_ID/messages" \
             -H "Authorization: Bot $DISCORD_TOKEN" \
             -H "Content-Type: application/json" \
-            --data "{\"content\": \"$MSG_CONTENT\"}"
+            -d @body.json
+
+          echo "Sent message:"
+          cat msg.txt
