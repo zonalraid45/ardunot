@@ -1,0 +1,24 @@
+name: Send Discord Message
+
+on:
+  workflow_dispatch:
+
+jobs:
+  send-message:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Send message to Discord channel
+        env:
+          DISCORD_TOKEN: ${{ secrets.D }}
+          CHANNEL_ID: "1435926773907980370"
+        run: |
+          MSG_CONTENT=$(cat msg.txt)
+
+          curl -X POST "https://discord.com/api/v10/channels/$CHANNEL_ID/messages" \
+            -H "Authorization: Bot $DISCORD_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$MSG_CONTENT\"}"
