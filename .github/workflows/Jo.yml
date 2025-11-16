@@ -22,6 +22,6 @@ jobs:
       - name: Run deletion script
         env:
           DISCORD_TOKEN: ${{ secrets.D }}
-          TARGET_USER: "1438495387848540160"
+          TARGET_USER: "1435987186502733878"
           TARGET_GUILD: "1435926772972519446"
         run: python3 delete_messages.py
