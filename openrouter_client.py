@@ -16,9 +16,10 @@ async def get_session():
         SESSION = aiohttp.ClientSession()
     return SESSION
 
+
 async def call_openrouter(
     prompt: str,
-    model: str,
+    model: str = "mistralai/mistral-small-latest",
     temperature: float = 0.6,
     retries: int = 4
 ) -> str:
@@ -37,7 +38,7 @@ async def call_openrouter(
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://example.com",
+        "Referer": "https://github.com/yourbot",
         "X-Title": "Discord Bot"
     }
 
@@ -48,13 +49,20 @@ async def call_openrouter(
             async with session.post(OPENROUTER_URL, headers=headers, json=payload, timeout=20) as r:
                 if r.status == 200:
                     data = await r.json()
-                    return data["choices"][0]["message"]["content"]
+
+                    # SAFE PARSE
+                    try:
+                        return data["choices"][0]["message"]["content"]
+                    except:
+                        return "⚠️ Empty response from model."
+
                 elif r.status == 429:
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 8)
                 else:
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 8)
+
         except:
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 8)
