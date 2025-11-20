@@ -14,8 +14,8 @@ GEMINI_API_KEY = os.getenv("OPENROUTER_API_KEY")  # You said keep same name
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Gemini endpoint
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+
 
 
 CREATOR_ID = 1020353220641558598
