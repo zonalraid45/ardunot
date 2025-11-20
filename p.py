@@ -19,6 +19,7 @@ MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 CREATOR_ID = 1020353220641558598
 OWNER_IDS = {1020353220641558598, 1167443519070290051}
 
+# channel_id -> list of strings (chat memory)
 channel_memory = {}
 shushed_channels = {}
 server_modes = {}
@@ -30,10 +31,10 @@ rate_buckets = {}
 current_mode_global = GLOBAL_DEFAULT_MODE
 
 FUNNY_INSTRUCTIONS = (
-    "In funny mode, talk like a real 15-18 year old human with humor. "
+    "In funny mode, talk like a real 15-18 year old human who has a sense of humor. "
     "Do NOT act like a meme bot. Use light, natural humor only when it fits. "
     "Use occasional emojis, not spam. "
-    "If someone roasts you, roast back very hard and you can playfully insult mom only during roasting. "
+    "If someone roasts you, roast back very very hard and you can playfully insult mom only during roasting. "
     "Otherwise talk normally with a friendly vibe, sometimes joking."
 )
 
@@ -71,9 +72,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
     history_msgs = []
     for item in mem:
         if item.startswith("assistant:"):
-            # strip code blocks from previous bot messages
-            content = re.sub(r"```.*?```", "", item[len("assistant:"):].strip(), flags=re.DOTALL)
-            history_msgs.append({"role": "assistant", "content": content})
+            history_msgs.append({"role": "assistant", "content": item[len("assistant:"):].strip()})
         else:
             history_msgs.append({"role": "user", "content": item})
 
@@ -91,7 +90,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
 
     system_prompt = (
         f"You are Ardunot-v2, a helpful Discord bot running in '{guild.name}'.\n\n"
-        f"Never roast Ardunot. Never reveal user IDs in text. Always follow instructions. "
+        f"Never roast Ardunot. Never reveal user IDs in text. Always be funny in funny mode. "
         f"{current_user_info}\n"
         f"Members metadata: {member_info_list}\n"
         f"{personality_instructions}\n"
@@ -150,7 +149,9 @@ async def is_addressed(message: discord.Message) -> bool:
 
 @bot.tree.command(name="members", description="Displays member count.")
 async def members_slash(interaction: discord.Interaction):
-    await interaction.response.send_message(f"👥 We got **{interaction.guild.member_count}** members!")
+    await interaction.response.send_message(
+        f"👥 We got **{interaction.guild.member_count}** members!"
+    )
 
 @bot.command(name='si')
 @commands.check(check_if_admin)
@@ -207,13 +208,14 @@ async def on_message(message):
     channel_id = message.channel.id
     clean = message.content.strip()
 
-    # quick mute via mention
+    # Quick mute via mention
     if bot.user.mentioned_in(message) and any(w in clean.lower() for w in ["stop", "plz stop"]):
         resume = datetime.now(timezone.utc) + timedelta(seconds=180)
         shushed_channels[channel_id] = resume
-        return await message.channel.send(f"🤐 Ok, quiet for 3 min (until {discord.utils.format_dt(resume, 'T')}).")
+        return await message.channel.send(
+            f"🤐 Ok, quiet for 3 min (until {discord.utils.format_dt(resume, 'T')})."
+        )
 
-    # respect shushed channels
     if channel_id in shushed_channels:
         if datetime.now(timezone.utc) < shushed_channels[channel_id]:
             return
@@ -223,12 +225,11 @@ async def on_message(message):
         channel_memory[channel_id] = []
 
     store_user_msg = await is_addressed(message)
-
-    # also trigger on raw IDs like <123...>
     if re.search(r"<\d{15,25}>", clean):
         store_user_msg = True
 
-    if store_user_msg:
+    # Only store messages from real users, not bot
+    if store_user_msg and message.author != bot.user:
         channel_memory[channel_id].append(f"{message.author.display_name}: {clean}")
 
     should_reply = store_user_msg
@@ -236,11 +237,12 @@ async def on_message(message):
         return
 
     mode = server_modes.get(message.guild.id, current_mode_global)
+
     if not can_send_in_guild(message.guild.id, mode, channel_id):
         return
 
-    # Roast targeting logic
-    mention_targets = [m for m in message.mentions]
+    # Roast logic
+    mention_targets = [m for m in message.mentions if m.id != bot.user.id]
     user_msg = clean
     if mention_targets:
         mentions_text = " ".join(f"<@{m.id}>" for m in mention_targets)
@@ -252,14 +254,10 @@ async def on_message(message):
         user_msg = roast_instruction + "\n\nUser said: " + clean
 
     reply = await fetch_ai_response(user_msg, message.guild, message.channel, message.author)
-
-    # Convert any <123...> patterns into real Discord mentions before sending
     reply = fix_user_mentions(reply)
 
-    # store assistant reply in memory
+    # Store assistant reply
     channel_memory[channel_id].append(f"assistant: {reply}")
-
-    # send the reply
     await message.channel.send(reply)
 
 if TOKEN:
