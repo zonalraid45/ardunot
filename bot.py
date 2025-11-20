@@ -9,14 +9,11 @@ from datetime import datetime, timedelta, timezone
 
 # --- CONFIGURATION ---
 TOKEN = os.getenv("DISCORD_TOKEN")
-GEMINI_API_KEY = os.getenv("OPENROUTER_API_KEY")  # You said keep same name
+
+from openrouter_client import call_openrouter
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-
-
 
 CREATOR_ID = 1020353220641558598
 OWNER_IDS = {1020353220641558598, 1167443519070290051}
@@ -80,12 +77,11 @@ def extract_time(text: str):
     num, unit = int(match.group(1)), match.group(2)
     return num * {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
 
-# -------------------- GEMINI API RESPONSE ------------------------
+# -------------------- OPENROUTER AI RESPONSE ------------------------
 
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
 
     mem = channel_memory.get(channel.id, [])
-
     history_text = "\n".join(mem)
 
     try:
@@ -114,30 +110,19 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         f"Admins: Realboy9000, theolego.\n"
     )
 
-    payload = {
-        "contents": [
-            {"parts": [{"text": system_prompt}]},
-            {"parts": [{"text": history_text}]},
-            {"parts": [{"text": user_msg}]}
-        ]
-    }
+    prompt = (
+        system_prompt
+        + "\n\n--- Recent Messages ---\n"
+        + history_text
+        + "\n\n--- User Message ---\n"
+        + user_msg
+    )
 
-    params = {"key": GEMINI_API_KEY}
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(GEMINI_URL, params=params, json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    return text.replace("@", "")
-                else:
-                    print("Gemini Error:", resp.status, await resp.text())
-                    return "⚠️ AI failed to respond."
-    except Exception as e:
-        print("Gemini API Error:", e)
-        return "⚠️ AI failed to respond."
-
+    return await call_openrouter(
+        prompt=prompt,
+        model="gpt-3.5-turbo",
+        temperature=0.6
+    )
 
 # ---------------- RATE LIMIT ---------------------
 
@@ -154,7 +139,6 @@ def can_send_in_guild(guild_id: int, mode: str, channel_id: int) -> bool:
         bucket.append(now)
         return True
     return False
-
 
 # ---------------- ADDRESS CHECK -------------------
 
