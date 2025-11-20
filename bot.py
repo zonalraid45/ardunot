@@ -120,7 +120,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
 
     return await call_openrouter(
         prompt=prompt,
-        model="google/gemini-2.0-flash-001",
+        model="openai/gpt-3.5-turbo",
         temperature=0.6
     )
 
