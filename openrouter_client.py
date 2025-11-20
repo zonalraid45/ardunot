@@ -10,6 +10,7 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 SESSION: aiohttp.ClientSession | None = None
 
+
 async def get_session():
     global SESSION
     if SESSION is None or SESSION.closed:
@@ -19,7 +20,7 @@ async def get_session():
 
 async def call_openrouter(
     prompt: str,
-    model: str = "mistralai/mistral-small-latest",
+    model: str,
     temperature: float = 0.6,
     retries: int = 4
 ) -> str:
@@ -46,24 +47,26 @@ async def call_openrouter(
 
     for _ in range(retries):
         try:
-            async with session.post(OPENROUTER_URL, headers=headers, json=payload, timeout=20) as r:
+            async with session.post(
+                OPENROUTER_URL,
+                headers=headers,
+                json=payload,
+                timeout=20
+            ) as r:
+
                 if r.status == 200:
                     data = await r.json()
-
-                    # SAFE PARSE
-                    try:
-                        return data["choices"][0]["message"]["content"]
-                    except:
-                        return "⚠️ Empty response from model."
+                    return data["choices"][0]["message"]["content"]
 
                 elif r.status == 429:
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 8)
+
                 else:
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 8)
 
-        except:
+        except Exception:
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 8)
 
