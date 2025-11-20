@@ -37,10 +37,11 @@ RATE_LIMITS = {
 rate_buckets = {}
 current_mode_global = GLOBAL_DEFAULT_MODE
 
+# ORIGINAL DEFAULT FI (no roasting)
 FUNNY_INSTRUCTIONS = (
-    "Be extremely funny, human-like, use emojis 😎😂🤣, use short forms (u, r, lol, btw), "
-    "always reply to messages unless if somebody mention somebody else or reply somebody else message, "
-    "keep replies under 30 chars and do not ping anyone."
+    "Be extremely funny, human-like, use emojis 😎😂🤣, use short forms (u, r, lol, btw). "
+    "Keep replies under 30 chars and do not ping anyone. "
+    "Never roast anyone unless someone roasts you first, then roast them back funny."
 )
 
 SERIOUS_INSTRUCTIONS = (
@@ -52,7 +53,6 @@ SERIOUS_INSTRUCTIONS = (
     "Enter codes in code format like within ```"
 )
 
-
 # UTILS
 def is_admin(member: discord.Member):
     try:
@@ -60,14 +60,11 @@ def is_admin(member: discord.Member):
     except:
         return member.id in OWNER_IDS
 
-
 def check_if_admin(ctx):
     return is_admin(ctx.author)
 
-
 async def extract_target_user(message: discord.Message):
     return message.mentions[0] if message.mentions else None
-
 
 def extract_time(text: str):
     match = re.search(r"(\d+)(s|m|h|d)", text)
@@ -76,13 +73,12 @@ def extract_time(text: str):
     num, unit = int(match.group(1)), match.group(2)
     return num * {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
 
-
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
     mem = channel_memory.get(channel.id, [])
 
-    # convert to HF format
+    # convert memory to HF format
     history_msgs = [{"role": "user", "content": line} for line in mem]
 
     try:
@@ -98,12 +94,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
     mode = server_modes.get(guild.id, current_mode_global)
     personality_instructions = SERIOUS_INSTRUCTIONS if mode == "serious" else FUNNY_INSTRUCTIONS
 
-    roast_instruction = ""
-    if mode == "funny":
-        roast_instruction = (
-            "Automatically roast user Cordunot (ID 1435987186502733878) always, your adopted brother, "
-            "but if he is silent for 5 mins, stop until he messages again."
-        )
+    # REMOVED roast_instruction COMPLETELY
 
     system_prompt = (
         f"You are Ardunot-v2 in '{guild.name}'.\n\n"
@@ -112,7 +103,6 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         f"Members: {member_info_list}\n\n"
         f"Never mention @.\n"
         f"{personality_instructions}\n"
-        f"{roast_instruction}\n"
         f"Talk also when chat is dead.\n"
         f"Moderators: aarav-2022, Supratsa, Gleb momot. Admins: Realboy9000, theolego."
     )
@@ -141,7 +131,6 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         print(f"API Error: {e}")
         return "⚠️ AI failed to respond."
 
-
 def can_send_in_guild(guild_id: int, mode: str, channel_id: int) -> bool:
     now = datetime.now(timezone.utc)
     bucket = rate_buckets.setdefault(guild_id, deque())
@@ -156,7 +145,6 @@ def can_send_in_guild(guild_id: int, mode: str, channel_id: int) -> bool:
         return True
 
     return False
-
 
 async def is_addressed(message: discord.Message) -> bool:
     try:
@@ -178,14 +166,12 @@ async def is_addressed(message: discord.Message) -> bool:
     except:
         return False
 
-
 # SLASH
 @bot.tree.command(name="members", description="Displays member count.")
 async def members_slash(interaction: discord.Interaction):
     await interaction.response.send_message(
         f"👥 We got **{interaction.guild.member_count}** members!"
     )
-
 
 # PREFIX
 @bot.command(name='si')
@@ -194,13 +180,11 @@ async def set_serious_mode(ctx):
     server_modes[ctx.guild.id] = "serious"
     await ctx.send("Bot Mode: Serious/Friendly.")
 
-
 @bot.command(name='fi')
 @commands.check(check_if_admin)
 async def set_funny_mode(ctx):
     server_modes[ctx.guild.id] = "funny"
-    await ctx.send("Bot Mode: Funny/Roasting.")
-
+    await ctx.send("Bot Mode: Funny Mode Enabled.")
 
 @bot.command(name='shush')
 @commands.check(check_if_admin)
@@ -222,7 +206,6 @@ async def shush_bot(ctx, *args):
         f"🔇 Muted until **{discord.utils.format_dt(resume_time, 'T')}** ({duration_display})."
     )
 
-
 @bot.command(name='rshush')
 async def resume_shush(ctx):
     if ctx.channel.id in shushed_channels:
@@ -230,7 +213,6 @@ async def resume_shush(ctx):
         await ctx.send("🔊 Mute lifted!")
     else:
         await ctx.send("🤔 I wasn't muted.")
-
 
 # EVENTS
 @bot.event
@@ -241,7 +223,6 @@ async def on_ready():
         print(f"Synced {len(synced)} commands.")
     except Exception as e:
         print("Sync error:", e)
-
 
 @bot.event
 async def on_message(message):
@@ -274,7 +255,7 @@ async def on_message(message):
     if channel_id not in channel_memory:
         channel_memory[channel_id] = []
 
-    # STORE MEMORY ONLY IF MENTIONED OR REPLIED (your rule)
+    # STORE MEMORY ONLY IF MENTIONED OR REPLIED
     store_user_msg = await is_addressed(message)
 
     if store_user_msg:
@@ -292,7 +273,7 @@ async def on_message(message):
 
     reply = await fetch_ai_response(clean, message.guild, message.channel, message.author)
 
-    # store bot reply ALWAYS (your rule)
+    # store bot reply always
     channel_memory[channel_id].append(f"BOT: {reply}")
 
     await message.channel.send(reply)
