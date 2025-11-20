@@ -25,10 +25,7 @@ server_modes = {}
 GLOBAL_DEFAULT_MODE = "serious"
 
 RATE_WINDOW_SECONDS = 60
-RATE_LIMITS = {
-    "serious": 6,
-    "funny": 6
-}
+RATE_LIMITS = {"serious": 6, "funny": 6}
 
 rate_buckets = {}
 current_mode_global = GLOBAL_DEFAULT_MODE
@@ -71,9 +68,12 @@ def extract_time(text: str):
     num, unit = int(match.group(1)), match.group(2)
     return num * {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
 
+# <<<<<< NEW FUNCTION: PING FIXER >>>>>>
+def fix_user_mentions(text: str):
+    return re.sub(r"<(\d{15,25})>", r"<@\1>", text)
+
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
-
     mem = channel_memory.get(channel.id, [])
     history_msgs = [{"role": "user", "content": line} for line in mem]
 
@@ -116,7 +116,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
                 if resp.status == 200:
                     data = await resp.json()
                     content = data["choices"][0]["message"]["content"]
-                    return content.replace("@", "")
+                    return content.replace("@", "")  # remove @ from AI output only
                 else:
                     return "⚠️ AI failed to respond."
     except:
@@ -130,11 +130,9 @@ def can_send_in_guild(guild_id: int, mode: str, channel_id: int) -> bool:
         bucket.popleft()
 
     limit = RATE_LIMITS.get(mode, RATE_LIMITS["serious"])
-
     if len(bucket) < limit:
         bucket.append(now)
         return True
-
     return False
 
 async def is_addressed(message: discord.Message) -> bool:
@@ -189,7 +187,6 @@ async def shush_bot(ctx, *args):
 
     resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
     shushed_channels[ctx.channel.id] = resume_time
-
     await ctx.send(f"🔇 Muted until {discord.utils.format_dt(resume_time, 'T')} ({duration_display}).")
 
 @bot.command(name='rshush')
@@ -239,6 +236,10 @@ async def on_message(message):
 
     store_user_msg = await is_addressed(message)
 
+    # <<<<<< NEW TRIGGER: reply if user IDs like <123> appear >>>>>>
+    if re.search(r"<\d{15,25}>", clean):
+        store_user_msg = True
+
     if store_user_msg:
         channel_memory[channel_id].append(f"{message.author.display_name}: {clean}")
 
@@ -252,6 +253,10 @@ async def on_message(message):
         return
 
     reply = await fetch_ai_response(clean, message.guild, message.channel, message.author)
+
+    # <<<<<< APPLY MENTION FIX BEFORE SENDING >>>>>>
+    reply = fix_user_mentions(reply)
+
     channel_memory[channel_id].append(f"BOT: {reply}")
     await message.channel.send(reply)
 
