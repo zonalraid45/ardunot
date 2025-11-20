@@ -39,7 +39,9 @@ async def call_openrouter(
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "Referer": "https://github.com/yourbot",
+
+        # REQUIRED by OpenRouter
+        "HTTP-Referer": "https://discord.com",
         "X-Title": "Discord Bot"
     }
 
@@ -47,27 +49,23 @@ async def call_openrouter(
 
     for _ in range(retries):
         try:
-            async with session.post(
-                OPENROUTER_URL,
-                headers=headers,
-                json=payload,
-                timeout=20
-            ) as r:
-
+            async with session.post(OPENROUTER_URL, headers=headers, json=payload, timeout=25) as r:
                 if r.status == 200:
                     data = await r.json()
                     return data["choices"][0]["message"]["content"]
 
-                elif r.status == 429:
+                # Rate limit
+                if r.status == 429:
                     await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2, 8)
+                    backoff = min(backoff * 2, 10)
+                    continue
 
-                else:
-                    await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2, 8)
+                # Other server errors
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 10)
 
         except Exception:
             await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 8)
+            backoff = min(backoff * 2, 10)
 
     return "⚠️ I'm having trouble responding right now."
