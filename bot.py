@@ -20,10 +20,10 @@ MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 CREATOR_ID = 1020353220641558598
 OWNER_IDS = {1020353220641558598, 1167443519070290051}
 
-MAX_MEMORY = 30
+# unlimited memory per channel in RAM
 channel_memory = {}
-shushed_channels = {}
 
+shushed_channels = {}
 server_modes = {}
 GLOBAL_DEFAULT_MODE = "serious"
 
@@ -53,7 +53,7 @@ SERIOUS_INSTRUCTIONS = (
 )
 
 
-# --- UTILITY FUNCTIONS ---
+# UTILS
 def is_admin(member: discord.Member):
     try:
         return member.id in OWNER_IDS or any(role.permissions.administrator for role in member.roles)
@@ -80,8 +80,10 @@ def extract_time(text: str):
 async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discord.TextChannel, author: discord.Member):
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
-    mem = channel_memory.get(channel.id, deque(maxlen=MAX_MEMORY))
-    history_messages = [{"role": "user", "content": line} for line in mem]
+    mem = channel_memory.get(channel.id, [])
+
+    # convert to HF format
+    history_msgs = [{"role": "user", "content": line} for line in mem]
 
     try:
         member_info_list = [
@@ -104,12 +106,11 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         )
 
     system_prompt = (
-        f"You are Ardunot-v2, a friendly, non-moderator AI in '{guild.name}'.\n\n"
+        f"You are Ardunot-v2 in '{guild.name}'.\n\n"
         f"Call Realboy9000 'mate'. Never reveal IDs. Never say who made you.\n\n"
-        f"Admins always have priority.\n\n"
         f"{current_user_info}\n\n"
         f"Members: {member_info_list}\n\n"
-        f"Never mention @ in your replies.\n"
+        f"Never mention @.\n"
         f"{personality_instructions}\n"
         f"{roast_instruction}\n"
         f"Talk also when chat is dead.\n"
@@ -120,7 +121,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         "model": MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
-            *history_messages,
+            *history_msgs,
             {"role": "user", "content": user_msg}
         ],
         "max_tokens": 220
@@ -132,7 +133,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
                 if resp.status == 200:
                     data = await resp.json()
                     content = data["choices"][0]["message"]["content"]
-                    return content.replace('@', '')
+                    return content.replace("@", "")
                 else:
                     print(f"HuggingFace Error {resp.status}: {await resp.text()}")
                     return "⚠️ AI failed to respond."
@@ -166,12 +167,10 @@ async def is_addressed(message: discord.Message) -> bool:
             try:
                 ref = message.reference
                 if isinstance(ref.resolved, discord.Message):
-                    if ref.resolved.author.id == bot.user.id:
-                        return True
+                    return ref.resolved.author.id == bot.user.id
                 else:
                     ref_msg = await message.channel.fetch_message(ref.message_id)
-                    if ref_msg and ref_msg.author.id == bot.user.id:
-                        return True
+                    return ref_msg and ref_msg.author.id == bot.user.id
             except:
                 pass
 
@@ -180,14 +179,15 @@ async def is_addressed(message: discord.Message) -> bool:
         return False
 
 
-# --- SLASH COMMANDS ---
-@bot.tree.command(name="members", description="Displays the total member count in the server.")
+# SLASH
+@bot.tree.command(name="members", description="Displays member count.")
 async def members_slash(interaction: discord.Interaction):
-    member_count = interaction.guild.member_count
-    await interaction.response.send_message(f"👥 We got **{member_count}** members!", ephemeral=False)
+    await interaction.response.send_message(
+        f"👥 We got **{interaction.guild.member_count}** members!"
+    )
 
 
-# --- PREFIX COMMANDS ---
+# PREFIX
 @bot.command(name='si')
 @commands.check(check_if_admin)
 async def set_serious_mode(ctx):
@@ -209,31 +209,30 @@ async def shush_bot(ctx, *args):
     duration_display = "10 minutes"
 
     if args:
-        time_seconds = extract_time(args[0])
-        if time_seconds is not None:
-            duration_seconds = time_seconds
-            duration_display = args[0]
-        else:
-            return await ctx.send("⚠️ Invalid duration format.")
+        sec = extract_time(args[0])
+        if sec is None:
+            return await ctx.send("⚠️ Invalid time format.")
+        duration_seconds = sec
+        duration_display = args[0]
 
     resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
     shushed_channels[ctx.channel.id] = resume_time
 
-    resume_time_str = discord.utils.format_dt(resume_time, 'T')
-    await ctx.send(f"🔇 Muted until **{resume_time_str}** ({duration_display}).")
+    await ctx.send(
+        f"🔇 Muted until **{discord.utils.format_dt(resume_time, 'T')}** ({duration_display})."
+    )
 
 
 @bot.command(name='rshush')
 async def resume_shush(ctx):
-    channel_id = ctx.channel.id
-    if channel_id in shushed_channels:
-        del shushed_channels[channel_id]
+    if ctx.channel.id in shushed_channels:
+        del shushed_channels[ctx.channel.id]
         await ctx.send("🔊 Mute lifted!")
     else:
-        await ctx.send("🤔 I wasn't muted here.")
+        await ctx.send("🤔 I wasn't muted.")
 
 
-# --- EVENTS ---
+# EVENTS
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
@@ -241,7 +240,7 @@ async def on_ready():
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} commands.")
     except Exception as e:
-        print(f"Sync error: {e}")
+        print("Sync error:", e)
 
 
 @bot.event
@@ -251,19 +250,20 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+    # ignore slash "/"
     if message.content.startswith('/'):
         return
 
     channel_id = message.channel.id
-    clean_msg = message.content.strip()
+    clean = message.content.strip()
 
-    # stop command
-    if bot.user.mentioned_in(message) and any(word in clean_msg.lower() for word in ["stop", "plz stop"]):
-        duration_seconds = 180
-        resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
-        shushed_channels[channel_id] = resume_time
-        resume_time_str = discord.utils.format_dt(resume_time, 'T')
-        return await message.channel.send(f"🤐 Ok, I'll be quiet for **3 minutes** (until {resume_time_str}).")
+    # stop bot temporary
+    if bot.user.mentioned_in(message) and any(w in clean.lower() for w in ["stop", "plz stop"]):
+        resume = datetime.now(timezone.utc) + timedelta(seconds=180)
+        shushed_channels[channel_id] = resume
+        return await message.channel.send(
+            f"🤐 Ok, quiet for 3 min (until {discord.utils.format_dt(resume, 'T')})."
+        )
 
     if channel_id in shushed_channels:
         if datetime.now(timezone.utc) < shushed_channels[channel_id]:
@@ -272,21 +272,29 @@ async def on_message(message):
             del shushed_channels[channel_id]
 
     if channel_id not in channel_memory:
-        channel_memory[channel_id] = deque(maxlen=MAX_MEMORY)
+        channel_memory[channel_id] = []
 
-    channel_memory[channel_id].append(f"{message.author.display_name}: {clean_msg}")
+    # STORE MEMORY ONLY IF MENTIONED OR REPLIED (your rule)
+    store_user_msg = await is_addressed(message)
 
-    should_reply = await is_addressed(message)
+    if store_user_msg:
+        channel_memory[channel_id].append(f"{message.author.display_name}: {clean}")
+
+    # Should bot reply?
+    should_reply = store_user_msg
     if not should_reply:
         return
 
-    guild_id = message.guild.id
-    mode = server_modes.get(guild_id, current_mode_global)
+    mode = server_modes.get(message.guild.id, current_mode_global)
 
-    if not can_send_in_guild(guild_id, mode, channel_id):
+    if not can_send_in_guild(message.guild.id, mode, channel_id):
         return
 
-    reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
+    reply = await fetch_ai_response(clean, message.guild, message.channel, message.author)
+
+    # store bot reply ALWAYS (your rule)
+    channel_memory[channel_id].append(f"BOT: {reply}")
+
     await message.channel.send(reply)
 
 
