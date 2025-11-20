@@ -24,6 +24,6 @@ jobs:
     - name: Run bot
       env:
         DISCORD_TOKEN: ${{ secrets.D }}
-        OPENROUTER_API_KEY: ${{ secrets.LOL }}
+        LOL: ${{ secrets.LOL }}
       run: |
         python -u bot.py
