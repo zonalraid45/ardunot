@@ -15,7 +15,8 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Gemini endpoint
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+
 
 CREATOR_ID = 1020353220641558598
 OWNER_IDS = {1020353220641558598, 1167443519070290051}
