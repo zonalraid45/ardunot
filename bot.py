@@ -25,21 +25,16 @@ channel_memory = {}
 shushed_channels = {}
 
 server_modes = {}
-GLOBAL_DEFAULT_MODE = "serious" # CHANGED: Default mode is now "serious"
+GLOBAL_DEFAULT_MODE = "serious"
 
-# -----------------------------
-# ⭐ NEW RATE LIMIT SYSTEM ⭐
-# -----------------------------
 RATE_WINDOW_SECONDS = 60
 
 RATE_LIMITS = {
-    "serious": 6,    # CHANGED: 1 msg per 10 sec = 6 msg/min
-    "funny": 6       # 1 msg per 10 sec = 6 msg/min
+    "serious": 6,
+    "funny": 6
 }
-# BOT_CHANNEL_LIMIT removed
-rate_buckets = {} # guild_id -> deque timestamps
-# -----------------------------
 
+rate_buckets = {}
 current_mode_global = GLOBAL_DEFAULT_MODE
 
 FUNNY_INSTRUCTIONS = (
@@ -52,14 +47,13 @@ SERIOUS_INSTRUCTIONS = (
     "Be friendly, professional, and concise. Use proper grammar and complete words. "
     "Always try to help and especially more helping if coding,help if your friend bot named Cordunot facing problem."
     "Do NOT use emojis, slang, short forms (u, r, lol, btw), or exclamation points. "
-    "Do not attempt humor, sarcasm, or roasting, and never mention users by name or nickname. "
-    "Do act like a moderator or admin. Maintain a serious but helpful tone."
+    "Do not attempt humor, sarcasm, or roasting, and never mention users. "
+    "Act like a moderator/admin. Maintain serious tone."
     "Enter codes in code format like within ```"
 )
 
 
 # --- UTILITY FUNCTIONS ---
-
 def is_admin(member: discord.Member):
     try:
         return member.id in OWNER_IDS or any(role.permissions.administrator for role in member.roles)
@@ -69,10 +63,6 @@ def is_admin(member: discord.Member):
 
 def check_if_admin(ctx):
     return is_admin(ctx.author)
-
-
-def is_owner_id(ctx):
-    return ctx.author.id in OWNER_IDS
 
 
 async def extract_target_user(message: discord.Message):
@@ -119,7 +109,7 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         f"Admins always have priority.\n\n"
         f"{current_user_info}\n\n"
         f"Members: {member_info_list}\n\n"
-        f"Never mention @ in your replies neither mention somebody or mention last message when you reply."
+        f"Never mention @ in your replies.\n"
         f"{personality_instructions}\n"
         f"{roast_instruction}\n"
         f"Talk also when chat is dead.\n"
@@ -144,28 +134,20 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
                     content = data["choices"][0]["message"]["content"]
                     return content.replace('@', '')
                 else:
-                    print(f"Hugging Face API Error: {resp.status}, {await resp.text()}")
-                    return "⚠️ AI failed to respond due to an API error."
+                    print(f"HuggingFace Error {resp.status}: {await resp.text()}")
+                    return "⚠️ AI failed to respond."
     except Exception as e:
-        print(f"API Request Exception: {e}")
-        return "⚠️ AI failed to respond due to a connection error."
+        print(f"API Error: {e}")
+        return "⚠️ AI failed to respond."
 
 
-# -----------------------------
-# ⭐ NEW RATE LIMIT FUNCTION ⭐
-# -----------------------------
 def can_send_in_guild(guild_id: int, mode: str, channel_id: int) -> bool:
-    """
-    Updated: limit is now 1 msg per 10 sec (6 msg/min) for all channels.
-    """
     now = datetime.now(timezone.utc)
     bucket = rate_buckets.setdefault(guild_id, deque())
 
-    # purge timestamps older than 1 min
     while bucket and (now - bucket[0]).total_seconds() > RATE_WINDOW_SECONDS:
         bucket.popleft()
 
-    # Fallback uses 'serious' limit since it's the new default
     limit = RATE_LIMITS.get(mode, RATE_LIMITS["serious"])
 
     if len(bucket) < limit:
@@ -173,16 +155,13 @@ def can_send_in_guild(guild_id: int, mode: str, channel_id: int) -> bool:
         return True
 
     return False
-# -----------------------------
 
 
 async def is_addressed(message: discord.Message) -> bool:
     try:
-        # Respond if bot is mentioned
         if bot.user in message.mentions:
             return True
 
-        # Respond if the message is a reply to the bot's last message
         if message.reference:
             try:
                 ref = message.reference
@@ -195,8 +174,7 @@ async def is_addressed(message: discord.Message) -> bool:
                         return True
             except:
                 pass
-        
-        # Removed the logic checking for recent bot messages in history
+
         return False
     except:
         return False
@@ -206,7 +184,7 @@ async def is_addressed(message: discord.Message) -> bool:
 @bot.tree.command(name="members", description="Displays the total member count in the server.")
 async def members_slash(interaction: discord.Interaction):
     member_count = interaction.guild.member_count
-    await interaction.response.send_message(f"👥 We got **{member_count}** members! Wowie, such a crowd! 😂", ephemeral=False)
+    await interaction.response.send_message(f"👥 We got **{member_count}** members!", ephemeral=False)
 
 
 # --- PREFIX COMMANDS ---
@@ -214,14 +192,14 @@ async def members_slash(interaction: discord.Interaction):
 @commands.check(check_if_admin)
 async def set_serious_mode(ctx):
     server_modes[ctx.guild.id] = "serious"
-    await ctx.send("Bot Mode Switched for this server: I am now in **Serious/Friendly** operating mode.")
+    await ctx.send("Bot Mode: Serious/Friendly.")
 
 
 @bot.command(name='fi')
 @commands.check(check_if_admin)
 async def set_funny_mode(ctx):
     server_modes[ctx.guild.id] = "funny"
-    await ctx.send("Bot Mode Switched for this server: I am back to my old **Funny/Roasting** self. Mate, what a relief.")
+    await ctx.send("Bot Mode: Funny/Roasting.")
 
 
 @bot.command(name='shush')
@@ -236,12 +214,13 @@ async def shush_bot(ctx, *args):
             duration_seconds = time_seconds
             duration_display = args[0]
         else:
-            await ctx.send("⚠️ Invalid duration format.")
+            return await ctx.send("⚠️ Invalid duration format.")
+
     resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
     shushed_channels[ctx.channel.id] = resume_time
 
     resume_time_str = discord.utils.format_dt(resume_time, 'T')
-    await ctx.send(f"🔇 Admin Mute: I'll be quiet until **{resume_time_str}** ({duration_display}).")
+    await ctx.send(f"🔇 Muted until **{resume_time_str}** ({duration_display}).")
 
 
 @bot.command(name='rshush')
@@ -262,19 +241,7 @@ async def on_ready():
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} commands.")
     except Exception as e:
-        print(f"Failed to sync commands: {e}")
-
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        if ctx.command and ctx.command.name in ['shush', 'si', 'fi']:
-            await ctx.send("🚫 You do not have permission to change my mode.")
-        else:
-            await ctx.send("🚫 You do not have permission.")
-    else:
-        print(f"Unhandled: {error}")
-        await commands.Bot.on_command_error(bot, ctx, error)
+        print(f"Sync error: {e}")
 
 
 @bot.event
@@ -289,9 +256,8 @@ async def on_message(message):
 
     channel_id = message.channel.id
     clean_msg = message.content.strip()
-    is_admin_user = is_admin(message.author)
 
-    # 3-min user mute
+    # stop command
     if bot.user.mentioned_in(message) and any(word in clean_msg.lower() for word in ["stop", "plz stop"]):
         duration_seconds = 180
         resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
@@ -307,75 +273,17 @@ async def on_message(message):
 
     if channel_id not in channel_memory:
         channel_memory[channel_id] = deque(maxlen=MAX_MEMORY)
-    channel_memory[channel_id].append(f"{message.author.display_name}: {message.content}")
 
-    mod_actions = {
-        "timeout": (
-            lambda target, duration: target.timeout(discord.utils.utcnow() + discord.timedelta(seconds=duration)) if duration else None,
-            lambda target, duration, time_str: f"⏳ Timed out {target} {time_str}"
-        ),
-        "kick": (
-            lambda target, _: target.kick(reason="AI admin command"),
-            lambda target, duration, time_str: f"✅ Kicked {target}"
-        ),
-        "ban": (
-            lambda target, _: target.ban(reason="AI admin command"),
-            lambda target, duration, time_str: f"✅ Banned {target}"
-        ),
-        "delete": (
-            lambda target, amount: message.channel.purge(limit=amount + 1) if amount else None,
-            lambda target, amount, time_str: f"🧹 Deleted {amount} messages."
-        )
-    }
-
-    action_found = False
-    for keyword, (action_func, response_func) in mod_actions.items():
-        if keyword in clean_msg.lower():
-            action_found = True
-
-            if not is_admin_user:
-                return await message.channel.send("❌ U r not an Admin lol")
-
-            target = await extract_target_user(message)
-            duration_or_amount = None
-
-            if keyword == "delete":
-                nums = re.findall(r"\d+", clean_msg)
-                duration_or_amount = int(nums[0]) if nums else None
-            elif keyword == "timeout":
-                duration_or_amount = extract_time(clean_msg)
-
-            if target or keyword == "delete":
-                try:
-                    if keyword == "delete":
-                        if duration_or_amount:
-                            await action_func(target, duration_or_amount)
-                            return await message.channel.send(response_func(target, duration_or_amount, duration_or_amount))
-                        else:
-                            return await message.channel.send("❌ Need a number.")
-
-                    elif target:
-                        await action_func(target, duration_or_amount)
-                        time_str = clean_msg.split()[-1] if duration_or_amount else ""
-                        return await message.channel.send(response_func(target, duration_or_amount, time_str))
-
-                    else:
-                        return await message.channel.send(f"❌ No target.")
-                except:
-                    return await message.channel.send(f"❌ Failed to perform {keyword}.")
-
-    if action_found:
-        return
+    channel_memory[channel_id].append(f"{message.author.display_name}: {clean_msg}")
 
     should_reply = await is_addressed(message)
     if not should_reply:
         return
 
-    guild_id = message.guild.id if message.guild else None
+    guild_id = message.guild.id
     mode = server_modes.get(guild_id, current_mode_global)
 
-    # Rate-limit check
-    if guild_id is not None and not can_send_in_guild(guild_id, mode, channel_id):
+    if not can_send_in_guild(guild_id, mode, channel_id):
         return
 
     reply = await fetch_ai_response(clean_msg, message.guild, message.channel, message.author)
