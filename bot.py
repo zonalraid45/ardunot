@@ -7,7 +7,6 @@ import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 
-# --- CONFIGURATION ---
 TOKEN = os.getenv("DISCORD_TOKEN")
 HF_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
@@ -20,15 +19,12 @@ MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 CREATOR_ID = 1020353220641558598
 OWNER_IDS = {1020353220641558598, 1167443519070290051}
 
-# unlimited memory per channel in RAM
 channel_memory = {}
-
 shushed_channels = {}
 server_modes = {}
 GLOBAL_DEFAULT_MODE = "serious"
 
 RATE_WINDOW_SECONDS = 60
-
 RATE_LIMITS = {
     "serious": 6,
     "funny": 6
@@ -37,28 +33,25 @@ RATE_LIMITS = {
 rate_buckets = {}
 current_mode_global = GLOBAL_DEFAULT_MODE
 
-# ORIGINAL DEFAULT FI (no roasting)
-FUNN"Y_INSTRUCTIONS = (
-    "In funny mode, talk like a real 15-18 year old  human who has a sense of humor."
-    "Do NOT act like a meme bot. Use light, natural humor only when it fits." 
-    "Use occasional emojis, not spam." 
-    "Do not shorten words unnaturally (no 'bout', 'dat', etc),you can use world like (lol,btw,u,r,y) but not always  as human do not do always." 
-    "You can use mild slang sometimes, but keep most words normal." 
-    "If someone roasts you, roast them back in a playful human way." 
-    "Otherwise talk normally but with a friendly vibe,sometimes joking."
-
+FUNNY_INSTRUCTIONS = (
+    "In funny mode, talk like a real 15-18 year old human who has a sense of humor."
+    "Do NOT act like a meme bot. Use light, natural humor only when it fits."
+    "Use occasional emojis, not spam."
+    "Do not shorten words unnaturally (no 'bout', 'dat', etc), you can use words like (lol, btw, u, r, y) but not always."
+    "Use mild slang sometimes but keep most words normal."
+    "If someone roasts you, roast back playfully."
+    "Otherwise talk normally with a friendly vibe, sometimes joking."
 )
 
 SERIOUS_INSTRUCTIONS = (
     "Be friendly, professional, and concise. Use proper grammar and complete words. "
-    "Always try to help and especially more helping if coding,help if your friend bot named Cordunot facing problem."
-    "Do NOT use emojis, slang, short forms (u, r, lol, btw), or exclamation points. "
-    "Do not attempt humor, sarcasm, or roasting, and never mention users. "
-    "Act like a moderator/admin. Maintain serious tone."
-    "Enter codes in code format like within ```"
+    "Help more if coding or if your friend bot Cordunot needs help. "
+    "Do NOT use emojis, slang, short forms (u, r, lol, btw) or humor. "
+    "Do not roast, and never mention users. "
+    "Act like a moderator/admin. Maintain a serious tone. "
+    "Enter code inside ``` blocks."
 )
 
-# UTILS
 def is_admin(member: discord.Member):
     try:
         return member.id in OWNER_IDS or any(role.permissions.administrator for role in member.roles)
@@ -82,8 +75,6 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
     headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
 
     mem = channel_memory.get(channel.id, [])
-
-    # convert memory to HF format
     history_msgs = [{"role": "user", "content": line} for line in mem]
 
     try:
@@ -95,11 +86,8 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
         member_info_list = []
 
     current_user_info = f"User speaking now: {author.display_name} (ID={author.id})"
-
     mode = server_modes.get(guild.id, current_mode_global)
     personality_instructions = SERIOUS_INSTRUCTIONS if mode == "serious" else FUNNY_INSTRUCTIONS
-
-    # REMOVED roast_instruction COMPLETELY
 
     system_prompt = (
         f"You are Ardunot-v2 in '{guild.name}'.\n\n"
@@ -130,10 +118,8 @@ async def fetch_ai_response(user_msg: str, guild: discord.Guild, channel: discor
                     content = data["choices"][0]["message"]["content"]
                     return content.replace("@", "")
                 else:
-                    print(f"HuggingFace Error {resp.status}: {await resp.text()}")
                     return "⚠️ AI failed to respond."
-    except Exception as e:
-        print(f"API Error: {e}")
+    except:
         return "⚠️ AI failed to respond."
 
 def can_send_in_guild(guild_id: int, mode: str, channel_id: int) -> bool:
@@ -157,13 +143,12 @@ async def is_addressed(message: discord.Message) -> bool:
             return True
 
         if message.reference:
+            ref = message.reference
+            if isinstance(ref.resolved, discord.Message):
+                return ref.resolved.author.id == bot.user.id
             try:
-                ref = message.reference
-                if isinstance(ref.resolved, discord.Message):
-                    return ref.resolved.author.id == bot.user.id
-                else:
-                    ref_msg = await message.channel.fetch_message(ref.message_id)
-                    return ref_msg and ref_msg.author.id == bot.user.id
+                ref_msg = await message.channel.fetch_message(ref.message_id)
+                return ref_msg and ref_msg.author.id == bot.user.id
             except:
                 pass
 
@@ -171,14 +156,12 @@ async def is_addressed(message: discord.Message) -> bool:
     except:
         return False
 
-# SLASH
 @bot.tree.command(name="members", description="Displays member count.")
 async def members_slash(interaction: discord.Interaction):
     await interaction.response.send_message(
         f"👥 We got **{interaction.guild.member_count}** members!"
     )
 
-# PREFIX
 @bot.command(name='si')
 @commands.check(check_if_admin)
 async def set_serious_mode(ctx):
@@ -207,9 +190,7 @@ async def shush_bot(ctx, *args):
     resume_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
     shushed_channels[ctx.channel.id] = resume_time
 
-    await ctx.send(
-        f"🔇 Muted until **{discord.utils.format_dt(resume_time, 'T')}** ({duration_display})."
-    )
+    await ctx.send(f"🔇 Muted until {discord.utils.format_dt(resume_time, 'T')} ({duration_display}).")
 
 @bot.command(name='rshush')
 async def resume_shush(ctx):
@@ -219,7 +200,6 @@ async def resume_shush(ctx):
     else:
         await ctx.send("🤔 I wasn't muted.")
 
-# EVENTS
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
@@ -236,14 +216,12 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-    # ignore slash "/"
     if message.content.startswith('/'):
         return
 
     channel_id = message.channel.id
     clean = message.content.strip()
 
-    # stop bot temporary
     if bot.user.mentioned_in(message) and any(w in clean.lower() for w in ["stop", "plz stop"]):
         resume = datetime.now(timezone.utc) + timedelta(seconds=180)
         shushed_channels[channel_id] = resume
@@ -254,19 +232,16 @@ async def on_message(message):
     if channel_id in shushed_channels:
         if datetime.now(timezone.utc) < shushed_channels[channel_id]:
             return
-        else:
-            del shushed_channels[channel_id]
+        del shushed_channels[channel_id]
 
     if channel_id not in channel_memory:
         channel_memory[channel_id] = []
 
-    # STORE MEMORY ONLY IF MENTIONED OR REPLIED
     store_user_msg = await is_addressed(message)
 
     if store_user_msg:
         channel_memory[channel_id].append(f"{message.author.display_name}: {clean}")
 
-    # Should bot reply?
     should_reply = store_user_msg
     if not should_reply:
         return
@@ -277,12 +252,8 @@ async def on_message(message):
         return
 
     reply = await fetch_ai_response(clean, message.guild, message.channel, message.author)
-
-    # store bot reply always
     channel_memory[channel_id].append(f"BOT: {reply}")
-
     await message.channel.send(reply)
-
 
 if TOKEN:
     bot.run(TOKEN)
